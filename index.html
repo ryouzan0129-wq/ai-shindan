@@ -1,21 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- AI超精密性格診断 マスターアイコン -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7C8CFF"/>
-      <stop offset="1" stop-color="#4FD8C8"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <rect width="512" height="512" rx="120" fill="#0B0E1A" opacity="0.18"/>
-  <!-- ニューラルネットワーク・マーク -->
-  <g stroke="#FFFFFF" stroke-width="14" opacity="0.55">
-    <path d="M256 140 L142 300 M256 140 L370 300 M142 300 L256 396 M370 300 L256 396 M256 140 L256 396"/>
-  </g>
-  <g fill="#FFFFFF">
-    <circle cx="256" cy="140" r="38"/>
-    <circle cx="142" cy="300" r="38" opacity="0.9"/>
-    <circle cx="370" cy="300" r="38" opacity="0.9"/>
-    <circle cx="256" cy="396" r="30" opacity="0.75"/>
-  </g>
-</svg>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AI超精密性格診断</title>
+  <meta name="description" content="最新AIがあなたを多角的に分析します。所要時間：約3〜5分。">
+
+  <!-- テーマカラー（ダーク/ライト） -->
+  <meta name="theme-color" content="#0B0E1A" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F4F6FB" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AI性格診断">
+
+  <!-- OGP（シェア時のプレビュー） -->
+  <meta property="og:title" content="AI超精密性格診断">
+  <meta property="og:description" content="最新AIがあなたを多角的に分析します。あなたは何問まで続けられる？">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <!--
+    アプリシェル構造
+    ─────────────────────────────
+    #hud      : 常時ヘッダー（回答数・時間・分析中テーマ・終了ボタン）
+    #screen   : 画面本体。script.js の Router が home / question /
+                interstitial / share を描画する
+    #ai-log   : 装飾用AIログティッカー（スクリーンリーダーからは隠す）
+    #quit-dialog : 終了確認シート（段階表示・必ず終了できる）
+    #toast    : 称号到達などの控えめな通知
+  -->
+  <div id="app">
+
+    <header id="hud" hidden>
+      <div class="hud-stats">
+        <span class="hud-item">
+          <span class="hud-label">回答済み</span>
+          <b id="hud-count" class="num">0</b><span class="hud-unit">問</span>
+        </span>
+        <span class="hud-sep" aria-hidden="true">·</span>
+        <span class="hud-item">
+          <b id="hud-time" class="num">0</b><span class="hud-unit">分</span>
+        </span>
+        <span class="hud-sep" aria-hidden="true">·</span>
+        <span class="hud-item hud-theme-wrap">
+          <span class="hud-label">分析中:</span>
+          <b id="hud-theme">—</b>
+        </span>
+      </div>
+      <button id="btn-quit" class="btn btn-ghost btn-sm" type="button">診断を終了</button>
+    </header>
+
+    <main id="screen" tabindex="-1">
+      <!-- Router が描画。JS無効時のフォールバック： -->
+      <noscript>
+        <div class="screen">
+          <section class="card glass" style="margin:auto; text-align:center;">
+            <h1>AI超精密性格診断</h1>
+            <p>この診断の実行には JavaScript が必要です。<br>ブラウザの設定を確認してください。</p>
+          </section>
+        </div>
+      </noscript>
+    </main>
+
+    <footer id="ai-log" aria-hidden="true">
+      <span id="ai-log-text"></span>
+    </footer>
+  </div>
+
+  <!-- 終了確認：最終ボタンは必ず終了する（ボタン位置固定・入れ替えなし） -->
+  <dialog id="quit-dialog" aria-labelledby="quit-title">
+    <div class="dlg-card glass">
+      <h2 id="quit-title" class="dlg-title">診断を終了</h2>
+      <div id="quit-body" class="dlg-body"><!-- JSが段階テキストを描画 --></div>
+      <div class="dlg-actions">
+        <button id="quit-back" class="btn btn-secondary" type="button">分析にもどる</button>
+        <button id="quit-confirm" class="btn btn-primary" type="button">終了する</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="./script.js" defer></script>
+</body>
+</html>
