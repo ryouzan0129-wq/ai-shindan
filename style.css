@@ -1,0 +1,704 @@
+/* =============================================================
+   AI超精密性格診断 — style.css
+   設計書 v1.1 準拠。依存ゼロ / ダークファースト / 60fps
+   アニメーションは transform・opacity のみ使用（合成レイヤ最適化）
+   ============================================================= */
+
+/* ---------- 1. デザイントークン -------------------------------- */
+:root {
+  /* ダーク（既定）— コントラスト検証: --ink on --bg = 15.2:1 (AAA) */
+  --bg: #0B0E1A;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-strong: rgba(255, 255, 255, 0.10);
+  --ink: #EDEFF7;
+  --ink-2: #9AA3BF;          /* on --bg = 7.1:1 (AA) */
+  --accent: #7C8CFF;
+  --accent-ink: #0B0E1A;     /* アクセント上の文字色 */
+  --accent-2: #4FD8C8;
+  --gold: #E8C36A;
+  --danger: #FF7A88;
+  --line: rgba(255, 255, 255, 0.12);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --glass-blur: blur(20px) saturate(1.4);
+
+  /* 分析オーロラ：ThemeEngine がテーマごとに --hue を差し替える */
+  --hue: 226;
+  --aurora-a: hsla(var(--hue), 85%, 66%, 0.13);
+  --aurora-b: hsla(calc(var(--hue) + 90), 70%, 60%, 0.10);
+
+  /* タイポグラフィ（オフラインPWAのためシステムスタック） */
+  --font: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+          "Noto Sans JP", "Yu Gothic UI", "Segoe UI", sans-serif;
+  --fs-h1: 28px; --fs-h2: 22px; --fs-q: 20px;
+  --fs-body: 16px; --fs-meta: 13px; --fs-micro: 11px;
+
+  /* モーション基準 */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --t-fast: 160ms; --t-med: 240ms;
+
+  --radius: 20px; --radius-sm: 12px;
+  --pad: clamp(16px, 4vw, 24px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* ライト — --ink on --bg = 13.9:1 / --ink-2 = 5.6:1 (AA) */
+    --bg: #F4F6FB;
+    --surface: rgba(255, 255, 255, 0.65);
+    --surface-strong: rgba(255, 255, 255, 0.9);
+    --ink: #171A26;
+    --ink-2: #5B6378;
+    --accent: #5A6BF0;
+    --accent-ink: #FFFFFF;
+    --accent-2: #1FB5A6;
+    --line: rgba(23, 26, 38, 0.12);
+    --shadow: 0 12px 32px rgba(23, 26, 38, 0.12);
+    --aurora-a: hsla(var(--hue), 80%, 62%, 0.14);
+    --aurora-b: hsla(calc(var(--hue) + 90), 70%, 55%, 0.10);
+  }
+}
+
+/* ---------- 2. リセット / ベース -------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--bg);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+b, strong { font-weight: 700; }
+.num { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* フォーカスリング（キーボード操作可視化・HIG準拠） */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* ---------- 3. 分析オーロラ背景 -------------------------------- */
+/* テーマ切替時に --hue が変わり、transition で色相がゆっくり回る＝
+   「AIが分析対象を切り替えた」感の演出 */
+body::before, body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  transition: background 1200ms linear;
+}
+body::before {
+  background: radial-gradient(48% 42% at 24% 18%, var(--aurora-a), transparent 70%);
+}
+body::after {
+  background: radial-gradient(52% 46% at 80% 86%, var(--aurora-b), transparent 70%);
+}
+
+/* ---------- 4. アプリシェル ------------------------------------ */
+#app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           0 env(safe-area-inset-left);
+}
+
+#screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad);
+  outline: none;
+}
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: screen-in var(--t-med) var(--ease);
+}
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- 5. HUD（常時ヘッダー） ------------------------------ */
+#hud {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px var(--pad);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--line);
+}
+.hud-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hud-item { display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; }
+.hud-item .num { color: var(--ink); font-size: 15px; }
+.hud-theme-wrap b {
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34vw;
+}
+.hud-sep { opacity: 0.5; }
+
+/* ---------- 6. ボタン / チップ ---------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--accent-2)));
+  color: var(--accent-ink);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.btn-secondary {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+}
+.btn-ghost { color: var(--ink-2); padding: 8px 14px; }
+.btn-ghost:hover { color: var(--ink); }
+.btn-sm { font-size: var(--fs-meta); padding: 8px 14px; }
+.btn-block { width: 100%; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+.chip-gold { border-color: color-mix(in srgb, var(--gold) 60%, transparent); color: var(--gold); }
+
+/* ---------- 7. ガラスカード共通 --------------------------------- */
+.card {
+  border-radius: var(--radius);
+  padding: var(--pad);
+}
+.glass {
+  background: var(--surface);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- 8. ホーム画面 --------------------------------------- */
+.home {
+  justify-content: center;
+  text-align: center;
+  gap: 20px;
+}
+.home-mark {
+  width: 84px; height: 84px;
+  margin: 0 auto 4px;
+  border-radius: 26px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--accent) 40%, transparent);
+  animation: mark-pulse 3.2s var(--ease) infinite;
+}
+.home-mark svg { width: 44px; height: 44px; }
+@keyframes mark-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+.home h1 { font-size: var(--fs-h1); letter-spacing: 0.02em; }
+.home .sub { color: var(--ink-2); }
+.home .eta { font-size: var(--fs-meta); color: var(--ink-2); }
+.home-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.home .resume { font-size: var(--fs-meta); }
+
+/* ---------- 9. 質問画面 ----------------------------------------- */
+.question { justify-content: center; gap: 16px; }
+.q-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+.q-card { display: flex; flex-direction: column; gap: 20px; }
+.q-card.leaving { animation: q-out var(--t-fast) var(--ease) forwards; }
+.q-card.entering { animation: q-in var(--t-med) var(--ease); }
+@keyframes q-out { to { opacity: 0; transform: translateY(8px); } }
+@keyframes q-in { from { opacity: 0; transform: translateY(12px); } }
+
+.q-text { font-size: var(--fs-q); font-weight: 600; line-height: 1.7; }
+.q-recall {
+  font-size: var(--fs-meta);
+  color: var(--accent-2);
+  border-left: 2px solid var(--accent-2);
+  padding-left: 10px;
+  line-height: 1.6;
+}
+
+/* 選択肢（4択） */
+.opt-list { display: flex; flex-direction: column; gap: 10px; }
+.opt {
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: transform var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.opt:hover { border-color: var(--accent); }
+.opt:active { transform: scale(0.98); }
+.opt.picked {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+/* リッカート5段階：中央から両端へ大きくなる計器風スケール */
+.likert { display: flex; flex-direction: column; gap: 10px; }
+.likert-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.likert-opt {
+  --size: 40px;
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  transition: transform var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+  flex-shrink: 0;
+}
+.likert-opt:nth-child(1), .likert-opt:nth-child(5) { --size: 54px; }
+.likert-opt:nth-child(2), .likert-opt:nth-child(4) { --size: 46px; }
+.likert-opt:nth-child(1) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.likert-opt:nth-child(5) { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line)); }
+.likert-opt:hover { transform: scale(1.08); }
+.likert-opt.picked { background: var(--accent); border-color: var(--accent); }
+.likert-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+
+/* 直感二択 */
+.binary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.binary-grid .opt { text-align: center; padding: 22px 12px; font-weight: 600; }
+
+/* ---------- 10. 分析インタースティシャル ------------------------ */
+.interstitial {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+}
+.ldr-stage { height: 96px; display: grid; place-items: center; }
+
+.msg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 84px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.msg {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+.msg.show { opacity: 1; transform: none; }
+.msg.done { color: var(--ink); }
+.msg.done::after { content: " ✓"; color: var(--accent-2); }
+
+/* 特別演出（新しい分析軸など）：金の細ボーダー */
+.interstitial.special .inter-card {
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--gold) 30%, transparent);
+}
+.inter-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+/* 仮説カード */
+.hypo {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+}
+.hypo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+.hypo-label { font-size: 18px; font-weight: 700; color: var(--ink); }
+.hypo-conf { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-meta); color: var(--ink-2); }
+.hypo-conf .num { color: var(--accent); font-size: 16px; }
+.hypo-delta { color: var(--accent-2); }
+.hypo-note { font-size: var(--fs-micro); color: var(--ink-2); }
+
+/* テーマ終了ミニレポート（6セルバー） */
+.report { width: 100%; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.report-row {
+  display: grid;
+  grid-template-columns: 6.5em 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+.bar { display: flex; gap: 4px; }
+.bar i {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--line);
+  transform: scaleX(0.6);
+  opacity: 0;
+}
+.bar i.on { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.bar.animate i {
+  animation: cell-in 260ms var(--ease) forwards;
+  animation-delay: calc(var(--i) * 60ms);
+}
+@keyframes cell-in { to { transform: none; opacity: 1; } }
+
+/* 再評価オーバーレイ（ランダムイベント） */
+#reeval {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 15px;
+  color: var(--ink-2);
+  animation: fade-in var(--t-fast) var(--ease);
+}
+@keyframes fade-in { from { opacity: 0; } }
+
+/* ---------- 11. ローダー6種 -------------------------------------
+   マークアップ契約（script.js が生成）:
+   radar : <div class="ldr ldr-radar"><i></i></div>
+   wave  : <div class="ldr ldr-wave"><i></i>×7</div>
+   dots  : <div class="ldr ldr-dots"><i></i>×8</div>
+   hex   : <div class="ldr ldr-hex"><i></i>×7</div>
+   bars  : <div class="ldr ldr-bars"><i></i>×6</div>
+   ring  : <div class="ldr ldr-ring"></div>
+   ---------------------------------------------------------------- */
+.ldr { position: relative; width: 72px; height: 72px; }
+
+/* 1) レーダースイープ */
+.ldr-radar {
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 0 14px transparent, inset 0 0 0 1px var(--line);
+}
+.ldr-radar::before {
+  content: "";
+  position: absolute; inset: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+.ldr-radar i {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, color-mix(in srgb, var(--accent-2) 55%, transparent), transparent 70deg);
+  animation: spin 1.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 2) 波形オシロスコープ（7ドットのサイン波） */
+.ldr-wave { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ldr-wave i {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wave 1.1s ease-in-out infinite;
+}
+.ldr-wave i:nth-child(2) { animation-delay: 0.10s; }
+.ldr-wave i:nth-child(3) { animation-delay: 0.20s; }
+.ldr-wave i:nth-child(4) { animation-delay: 0.30s; }
+.ldr-wave i:nth-child(5) { animation-delay: 0.40s; }
+.ldr-wave i:nth-child(6) { animation-delay: 0.50s; }
+.ldr-wave i:nth-child(7) { animation-delay: 0.60s; }
+@keyframes wave {
+  0%, 100% { transform: translateY(12px); opacity: 0.5; }
+  50%      { transform: translateY(-12px); opacity: 1; }
+}
+
+/* 3) 相関マップ収束（8ドットが中心へ） */
+.ldr-dots i {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  margin: -4px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  animation: converge 1.5s var(--ease) infinite;
+}
+.ldr-dots i:nth-child(1) { --tx: -28px; --ty: -20px; }
+.ldr-dots i:nth-child(2) { --tx:  30px; --ty: -26px; animation-delay: .08s; }
+.ldr-dots i:nth-child(3) { --tx: -32px; --ty:  14px; animation-delay: .16s; }
+.ldr-dots i:nth-child(4) { --tx:  24px; --ty:  26px; animation-delay: .24s; }
+.ldr-dots i:nth-child(5) { --tx:  -8px; --ty: -32px; animation-delay: .32s; }
+.ldr-dots i:nth-child(6) { --tx:  12px; --ty:  32px; animation-delay: .40s; }
+.ldr-dots i:nth-child(7) { --tx: -24px; --ty:  30px; animation-delay: .48s; }
+.ldr-dots i:nth-child(8) { --tx:  32px; --ty:   4px; animation-delay: .56s; }
+@keyframes converge {
+  0%   { transform: translate(var(--tx), var(--ty)) scale(0.7); opacity: 0.4; }
+  60%  { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0.7); opacity: 0.4; }
+}
+
+/* 4) 六角セルスキャン */
+.ldr-hex { display: grid; grid-template-columns: repeat(4, 16px); gap: 4px; place-content: center; }
+.ldr-hex i {
+  width: 16px; height: 14px;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: var(--accent);
+  animation: hex-pulse 1.4s ease-in-out infinite;
+}
+.ldr-hex i:nth-child(2) { animation-delay: .12s; }
+.ldr-hex i:nth-child(3) { animation-delay: .24s; }
+.ldr-hex i:nth-child(4) { animation-delay: .36s; }
+.ldr-hex i:nth-child(5) { animation-delay: .48s; }
+.ldr-hex i:nth-child(6) { animation-delay: .60s; }
+.ldr-hex i:nth-child(7) { animation-delay: .72s; }
+@keyframes hex-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.85); }
+  50%      { opacity: 1; transform: scale(1); }
+}
+
+/* 5) スペクトラムバー */
+.ldr-bars { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ldr-bars i {
+  width: 6px; height: 44px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  transform-origin: center;
+  animation: bar-eq 1s ease-in-out infinite;
+}
+.ldr-bars i:nth-child(2) { animation-delay: .12s; }
+.ldr-bars i:nth-child(3) { animation-delay: .24s; }
+.ldr-bars i:nth-child(4) { animation-delay: .06s; }
+.ldr-bars i:nth-child(5) { animation-delay: .30s; }
+.ldr-bars i:nth-child(6) { animation-delay: .18s; }
+@keyframes bar-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+
+/* 6) 円環（パーセント数字は出さない） */
+.ldr-ring {
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) 0 25%, var(--line) 25% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 56%, #000 57%);
+  mask: radial-gradient(circle, transparent 56%, #000 57%);
+  animation: spin 1.2s var(--ease) infinite;
+}
+
+/* ---------- 12. AIログティッカー -------------------------------- */
+#ai-log {
+  padding: 8px var(--pad) calc(10px + env(safe-area-inset-bottom));
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--ink-2) 65%, transparent);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  text-align: center;
+  min-height: 30px;
+  user-select: none;
+}
+#ai-log-text { transition: opacity 400ms var(--ease); }
+#ai-log-text.swap { opacity: 0; }
+
+/* ---------- 13. 終了確認ダイアログ ------------------------------ */
+#quit-dialog {
+  border: 0;
+  padding: var(--pad);
+  background: transparent;
+  max-width: min(440px, calc(100vw - 24px));
+  width: 100%;
+}
+#quit-dialog::backdrop {
+  background: rgba(5, 7, 14, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.dlg-card { display: flex; flex-direction: column; gap: 16px; }
+.dlg-title { font-size: var(--fs-h2); }
+.dlg-body { color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+.dlg-body .num { color: var(--ink); }
+.dlg-actions { display: flex; gap: 10px; }
+.dlg-actions .btn { flex: 1; padding: 12px 10px; }
+
+/* ---------- 14. シェア画面 -------------------------------------- */
+.share { gap: 20px; padding-bottom: 8px; }
+.share h2 { font-size: var(--fs-h2); text-align: center; }
+
+.result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px var(--pad);
+  text-align: center;
+}
+.result-card .rc-brand { font-size: var(--fs-meta); color: var(--ink-2); letter-spacing: 0.12em; }
+.rc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rc-stat { display: flex; flex-direction: column; gap: 2px; }
+.rc-stat .num { font-size: 30px; line-height: 1.2; }
+.rc-stat .rc-label { font-size: var(--fs-meta); color: var(--ink-2); }
+.rc-title-badge {
+  margin: 4px auto 0;
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  font-weight: 700;
+}
+.rc-hook { font-size: var(--fs-meta); color: var(--ink-2); }
+
+/* 称号ランクごとのカード演出 */
+.result-card.rank-2 { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.result-card.rank-3 {
+  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
+  box-shadow: var(--shadow), 0 0 44px color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+.result-card.rank-4, .result-card.rank-5 {
+  border-color: color-mix(in srgb, var(--gold) 65%, transparent);
+  box-shadow: var(--shadow), 0 0 54px color-mix(in srgb, var(--gold) 26%, transparent);
+}
+.result-card.rank-4 .rc-title-badge,
+.result-card.rank-5 .rc-title-badge { border-color: var(--gold); color: var(--gold); }
+.result-card.rank-5 .rc-title-badge { font-size: 20px; padding: 12px 26px; }
+
+.share-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.share-actions .btn { padding: 12px 8px; font-size: var(--fs-meta); }
+
+/* ---------- 15. 広告スロット ------------------------------------
+   SDK未組込。中身が注入された時だけ枠が現れる（README参照） */
+.ad-slot { min-height: 0; }
+.ad-slot:not(:empty) {
+  min-height: 90px;
+  margin-top: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* ---------- 16. トースト ---------------------------------------- */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  animation: toast-in var(--t-med) var(--ease);
+}
+#toast .gold { color: var(--gold); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+/* ---------- 17. 印刷（PDF保存はブラウザの印刷機能を使用） -------- */
+@media print {
+  body { background: #fff; }
+  body::before, body::after,
+  #hud, #ai-log, .share-actions, .ad-slot, .share h2, #toast { display: none !important; }
+  #app { max-width: none; }
+  .result-card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #171A26;
+    margin: 40px auto;
+    max-width: 420px;
+  }
+  .result-card .rc-label, .rc-brand, .rc-hook { color: #5B6378; }
+}
+
+/* ---------- 18. reduced motion ---------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .home-mark, .ldr i, .ldr-radar i, .ldr-ring { animation: none !important; }
+  .msg { transition: none; }
+}
+
+/* ---------- 19. 小型端末調整 ------------------------------------ */
+@media (max-width: 360px) {
+  :root { --fs-q: 18px; --fs-h1: 24px; }
+  .likert-opt { --size: 34px; }
+  .likert-opt:nth-child(1), .likert-opt:nth-child(5) { --size: 46px; }
+  .likert-opt:nth-child(2), .likert-opt:nth-child(4) { --size: 40px; }
+  .share-actions { grid-template-columns: repeat(2, 1fr); }
+}
