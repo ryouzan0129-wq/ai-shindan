@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>AI超精密性格診断</title>
-  <meta name="description" content="最新AIがあなたを多角的に分析します。所要時間：約3〜5分。">
+  <meta name="description" content="最新AIがあなたを多角的に分析します。あなたは何問まで続けられる？">
 
   <!-- テーマカラー（ダーク/ライト） -->
   <meta name="theme-color" content="#0B0E1A" media="(prefers-color-scheme: dark)">
@@ -41,22 +41,19 @@
   <div id="app">
 
     <header id="hud" hidden>
-      <div class="hud-stats">
+      <div class="hud-main">
         <span class="hud-item">
           <span class="hud-label">回答済み</span>
-          <b id="hud-count" class="num">0</b><span class="hud-unit">問</span>
+          <b class="num hud-count-box"><span id="hud-count">0</span></b><span class="hud-unit">問</span>
         </span>
-        <span class="hud-sep" aria-hidden="true">·</span>
-        <span class="hud-item">
-          <b id="hud-time" class="num">0</b><span class="hud-unit">分</span>
-        </span>
-        <span class="hud-sep" aria-hidden="true">·</span>
-        <span class="hud-item hud-theme-wrap">
-          <span class="hud-label">分析中:</span>
+        <span class="hud-theme-wrap">
+          <span id="hud-phase" class="hud-phase"></span>
           <b id="hud-theme">—</b>
         </span>
+        <button id="btn-quit" class="btn btn-ghost btn-sm" type="button">診断を終了</button>
       </div>
-      <button id="btn-quit" class="btn btn-ghost btn-sm" type="button">診断を終了</button>
+      <div class="hud-sub" aria-hidden="true"><span id="hud-status"></span></div>
+      <div class="hud-gauge" aria-hidden="true"><i id="hud-gauge-fill"></i></div>
     </header>
 
     <main id="screen" tabindex="-1">

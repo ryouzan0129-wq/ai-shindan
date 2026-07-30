@@ -243,10 +243,34 @@ const ThemeEngine = {
       theme = ThemeEngine.generate();
     }
 
+    ThemeEngine.decorate(theme);
     theme.intro = ThemeEngine.pickIntro(theme);
     s.currentTheme = theme;
     Store.save();
     return theme;
+  },
+
+  /**
+   * 分析フェーズの付与（HUD表示用）。
+   * 序盤: Primary → Secondary → 以降フェーズバンク。
+   * 生成テーマ: 名前の「Cross Analysis — 仕事 × 恋愛」等から接頭辞をフェーズに、
+   * 残りをテーマ名として分離（表示の重複を防ぐ）。
+   */
+  decorate(theme) {
+    const done = Store.state.themesDone.length;
+    if (theme.kind === 'gen') {
+      const m = theme.name.match(
+        /^(Phase \d+|Deep Layer|Cross Analysis|Extended Scan|Behavior Trace)\s*—\s*(.+)$/);
+      if (m) { theme.phase = m[1]; theme.shortName = m[2]; }
+      else { theme.phase = TH.phaseBank[bags.phase.next()]; theme.shortName = theme.name; }
+    } else if (done === 0) {
+      theme.phase = 'Primary Analysis';
+    } else if (done === 1) {
+      theme.phase = 'Secondary Analysis';
+    } else {
+      theme.phase = TH.phaseBank[bags.phase.next()];
+    }
+    theme.shortName ??= theme.name;
   },
 
   /** 生成テーマ：命名テンプレ × 軸 × 修飾。質問プランも同時に確定して永続化 */
@@ -526,6 +550,7 @@ const Scheduler = {
       recallAt: rng.range(40, 60),      // 長期記憶リコール
       specialAtTheme: rng.range(3, 4),  // 特別演出インタースティシャル
       hypoAddAtTheme: rng.range(5, 6),  // 新仮説追加
+      noteAt: rng.range(28, 34),        // 分析ノート（約30問ごと）
       hypoCursor: 0,
       prefixLastAt: -10,                // 接頭辞クールダウン
     };
@@ -550,6 +575,13 @@ const Scheduler = {
   specialDone() {
     Store.state.sched.specialAtTheme =
       Store.state.themesDone.length + rng.range(3, 4);
+    Store.save();
+  },
+  noteDue() {
+    return Store.state.answered >= (Store.state.sched.noteAt ?? Infinity);
+  },
+  noteDone() {
+    Store.state.sched.noteAt = Store.state.answered + rng.range(28, 34);
     Store.save();
   },
   prefixReady() {
@@ -599,6 +631,54 @@ const AnalysisEngine = {
       value: clamp(Math.round(3.5 + base * 1.5 + (rng.next() * 2 - 1)), 1, 6),
     }));
   },
+
+  /** レイヤーメーター：EN層名3本×充填率%。実回答統計＋ジッターで算出 */
+  layers(theme) {
+    const scores = HypothesisEngine.perThemeScores();
+    const base = scores[theme.name] ?? 0;
+    const out = [];
+    while (out.length < 3) {
+      const label = TH.layerBank[bags.layer.next()];
+      if (!out.some((x) => x.label === label)) {
+        out.push({
+          label,
+          value: clamp(Math.round(72 + base * 14 + (rng.next() * 2 - 1) * 16), 46, 98),
+        });
+      }
+    }
+    return out;
+  },
+
+  /**
+   * 分析ノート（約30問ごと）：完了テーマ間の実回答統計を比較し、
+   * 差異が大きければ contrast、揃っていれば aligned のテンプレを使う。
+   * → 表示される「読み」は常に実データと矛盾しない。
+   */
+  note() {
+    const N = TH.analysisNotes;
+    const scores = HypothesisEngine.perThemeScores();
+    const names = Object.keys(scores);
+    if (names.length < 2) return null;
+    // 差異最大のペアを特定
+    let a = names[0], b = names[1], maxDiff = -1;
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const d = Math.abs(scores[names[i]] - scores[names[j]]);
+        if (d > maxDiff) { maxDiff = d; a = names[i]; b = names[j]; }
+      }
+    }
+    const dir = (v) => v > 0.12 ? rng.pick(N.dir.high)
+      : v < -0.12 ? rng.pick(N.dir.low) : rng.pick(N.dir.mixed);
+    const contrast = maxDiff > 0.35;
+    const tpl = contrast
+      ? N.contrast[bags.noteC.next()]
+      : N.aligned[bags.noteA.next()];
+    return tpl
+      .replaceAll('{themeA}', a)
+      .replaceAll('{themeB}', b)
+      .replaceAll('{dirA}', dir(scores[a]))
+      .replaceAll('{dirB}', dir(scores[b]));
+  },
 };
 
 /* =====================================================================
@@ -626,37 +706,86 @@ const UI = {
   inSession: false,
   _tick: 0,
   _log: 0,
+  _status: 0,
+  _lastCount: -1,
 
   hud(show) {
     $('hud').hidden = !show;
-    if (show) UI.hudUpdate();
+    if (show) { UI._lastCount = -1; UI.hudUpdate(); }
   },
   hudUpdate() {
-    $('hud-count').textContent = String(Store.state.answered);
-    $('hud-time').textContent = String(fmtMin(Clock.elapsed()));
-    $('hud-theme').textContent = Store.state.currentTheme?.name ?? '—';
+    // 回答数：増えた瞬間だけ数字が下からぬるっと入れ替わる
+    const c = Store.state.answered;
+    if (c !== UI._lastCount) {
+      const el = $('hud-count');
+      el.textContent = String(c);
+      if (UI._lastCount >= 0) {
+        el.classList.remove('roll');
+        void el.offsetWidth;            // reflowでアニメーション再トリガ
+        el.classList.add('roll');
+      }
+      UI._lastCount = c;
+    }
+    // 分析フェーズ ＋ テーマ名（プレイ時間はHUDに出さない＝記録画面のみ）
+    const t = Store.state.currentTheme;
+    $('hud-phase').textContent = t?.phase ?? '';
+    $('hud-theme').textContent = t?.shortName ?? t?.name ?? '—';
+  },
+  /** テーマ内進捗ゲージ（0〜1）。全体進捗はどこにも存在しない */
+  setGauge(ratio) {
+    $('hud-gauge-fill').style.width = `${clamp(ratio, 0, 1) * 100}%`;
+  },
+
+  /** AIログ1行を合成（subsystems × statuses ＋ 数値 ＋ テーマ差し込み ≒ 500通り以上） */
+  makeLog() {
+    const L = TH.logSystem;
+    const r = rng.next();
+    const t = Store.state.currentTheme;
+    if (r < 0.15 && t) {
+      return `「${t.shortName ?? t.name}」 Layer — ${L.statuses[bags.logStat.next()]}`;
+    }
+    const sub = L.subsystems[bags.logSub.next()];
+    if (r < 0.42) {
+      const kind = rng.int(4);
+      const num = kind === 0 ? `${rng.range(84, 99)}%`
+        : kind === 1 ? `${Store.state.answered} samples`
+        : kind === 2 ? `Δ0.${rng.range(1, 9)}`
+        : `L${rng.range(2, 6)}`;
+      return `${sub} — ${num}`;
+    }
+    return `${sub} — ${L.statuses[bags.logStat.next()]}`;
   },
 
   startTicker() {
     clearInterval(UI._tick);
     UI._tick = setInterval(UI.hudUpdate, 1000);
+
+    // 画面下：AIログ（4.2秒ごとにフェード差し替え）
     clearInterval(UI._log);
     const swap = () => {
       const el = $('ai-log-text');
       el.classList.add('swap');
       setTimeout(() => {
-        const line = TH.logBank[bags.log.next()]
-          .replaceAll('{n}', String(Store.state.answered));
-        el.textContent = line;
+        el.textContent = UI.makeLog();
         el.classList.remove('swap');
       }, 400);
     };
     swap();
     UI._log = setInterval(swap, 4200);
+
+    // ヘッダー下：分析ステータス（AI Precision — High 等を7秒ごとに回転）
+    clearInterval(UI._status);
+    const status = () => {
+      const [k, v] = TH.statusBank[bags.status.next()];
+      $('hud-status').textContent = `${k} — ${v}`;
+    };
+    status();
+    UI._status = setInterval(status, 7000);
   },
   stopTicker() {
     clearInterval(UI._tick);
     clearInterval(UI._log);
+    clearInterval(UI._status);
     $('ai-log-text').textContent = '';
   },
 
@@ -747,19 +876,29 @@ const Screens = {
     const resumable = s && s.answered > 0 && s.currentTheme;
     $('screen').innerHTML = `
       <div class="screen home">
-        <div class="home-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="12" r="4" fill="#fff"/>
-            <circle cx="10" cy="30" r="4" fill="#fff" opacity=".85"/>
-            <circle cx="38" cy="30" r="4" fill="#fff" opacity=".85"/>
-            <circle cx="24" cy="40" r="3" fill="#fff" opacity=".7"/>
-            <path d="M24 12L10 30M24 12L38 30M10 30L24 40M38 30L24 40M24 12L24 40"
-                  stroke="#fff" stroke-width="1.6" opacity=".55"/>
+        <div class="home-core" aria-hidden="true">
+          <svg class="core-svg" viewBox="0 0 120 120">
+            <defs>
+              <radialGradient id="coreG" cx="50%" cy="42%" r="62%">
+                <stop offset="0%" stop-color="#B9C4FF"/>
+                <stop offset="55%" stop-color="#7C8CFF"/>
+                <stop offset="100%" stop-color="#4FD8C8"/>
+              </radialGradient>
+            </defs>
+            <circle class="core-ring r1" cx="60" cy="60" r="52" fill="none"
+                    stroke="currentColor" stroke-width="1" stroke-dasharray="2 6" opacity=".5"/>
+            <circle class="core-ring r2" cx="60" cy="60" r="41" fill="none"
+                    stroke="currentColor" stroke-width="1" stroke-dasharray="1 4" opacity=".35"/>
+            <circle class="core-dot d1" cx="60" cy="8"  r="2.6" fill="currentColor"/>
+            <circle class="core-dot d2" cx="101" cy="60" r="2"  fill="currentColor" opacity=".8"/>
+            <circle class="core-dot d3" cx="60" cy="112" r="2"  fill="currentColor" opacity=".6"/>
+            <circle class="core-halo" cx="60" cy="60" r="23" fill="none"
+                    stroke="url(#coreG)" stroke-width="1.5"/>
+            <circle class="core-orb" cx="60" cy="60" r="23" fill="url(#coreG)"/>
           </svg>
         </div>
         <h1>AI超精密性格診断</h1>
         <p class="sub">最新AIがあなたを多角的に分析します</p>
-        <p class="eta">所要時間：約3〜5分</p>
         <div class="home-actions">
           <button id="btn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
           ${resumable ? `<button id="btn-resume" class="btn btn-ghost resume" type="button">
@@ -840,6 +979,9 @@ const Screens = {
         </div>
       </div>`;
 
+    // テーマ内進捗ゲージ（このテーマの何問目か。総量は見せない）
+    UI.setGauge(theme.qIndex / QuestionEngine.list(theme).length);
+
     // 回答ハンドラ（1回だけ・視覚フィードバック後に遷移）
     const card = document.querySelector('.q-card');
     let answered = false;
@@ -895,7 +1037,13 @@ const Screens = {
     const nNormal = special ? rng.range(1, 2) : rng.range(2, 3);
     for (let i = 0; i < nNormal; i++) msgs.push({ text: AnalysisEngine.normalMsg(theme.name) });
 
-    const report = AnalysisEngine.report(theme);
+    // 表示ブロックはテーマごとに交互（特性バー ⇄ レイヤーメーター）＋ 約30問ごとの分析ノート
+    const useLayers = s.themesDone.length % 2 === 1;
+    const layers = useLayers ? AnalysisEngine.layers(theme) : null;
+    const report = useLayers ? null : AnalysisEngine.report(theme);
+    const note = Scheduler.noteDue() ? AnalysisEngine.note() : null;
+    if (note) Scheduler.noteDone();
+    UI.setGauge(1);   // テーマ内ゲージを満了表示
 
     $('screen').innerHTML = `
       <div class="screen interstitial${special ? ' special' : ''}">
@@ -904,6 +1052,7 @@ const Screens = {
           <div class="msg-list" aria-live="polite">
             ${msgs.map((m, i) => `<p class="msg" data-m="${i}">${esc(m.text)}</p>`).join('')}
           </div>
+          ${report ? `
           <div class="report" hidden>
             ${report.map((r) => `
               <div class="report-row">
@@ -911,7 +1060,22 @@ const Screens = {
                 <span class="bar">${[0, 1, 2, 3, 4, 5].map((i) =>
                   `<i style="--i:${i}" class="${i < r.value ? 'on' : ''}"></i>`).join('')}</span>
               </div>`).join('')}
-          </div>
+          </div>` : ''}
+          ${layers ? `
+          <div class="layers" hidden>
+            <div class="layers-title">${esc(TH.layersTitles[bags.layersTitle.next()])}</div>
+            ${layers.map((l) => `
+              <div class="layer-row">
+                <span>${esc(l.label)}</span>
+                <span class="meter"><i data-w="${l.value}"></i></span>
+                <span class="layer-val num">${l.value}%</span>
+              </div>`).join('')}
+          </div>` : ''}
+          ${note ? `
+          <div class="note" hidden>
+            <div class="note-head">Analysis Note</div>
+            <p>${esc(note)}</p>
+          </div>` : ''}
           ${hypo ? `
           <div class="hypo" hidden>
             <div class="hypo-head"><span>仮説${esc(hypo.key)}</span><span>${esc(hypo.note)}</span></div>
@@ -934,9 +1098,23 @@ const Screens = {
       el.classList.add('done');
     }
     const rep = document.querySelector('.report');
-    rep.hidden = false;
-    rep.querySelectorAll('.bar').forEach((b) => b.classList.add('animate'));
-    await sleep(rng.range(900, 1200));
+    if (rep) {
+      rep.hidden = false;
+      rep.querySelectorAll('.bar').forEach((b) => b.classList.add('animate'));
+      await sleep(rng.range(900, 1200));
+    }
+    const lay = document.querySelector('.layers');
+    if (lay) {
+      lay.hidden = false;
+      await sleep(60);   // hidden解除後にwidth遷移を発火させる
+      lay.querySelectorAll('.meter i').forEach((i) => { i.style.width = i.dataset.w + '%'; });
+      await sleep(rng.range(1150, 1400));
+    }
+    const noteEl = document.querySelector('.note');
+    if (noteEl) {
+      noteEl.hidden = false;
+      await sleep(rng.range(1400, 1800));  // 読み物なので少し長め
+    }
     const hy = document.querySelector('.hypo');
     if (hy) { hy.hidden = false; await sleep(rng.range(900, 1200)); }
     // 次テーマはここで確定（HUDの「分析中」表示がシーケンス途中で切り替わらないように）
@@ -1185,7 +1363,14 @@ async function init() {
   bags.axis     = new Bag('axis', TH.generator.axes.length);
   bags.modifier = new Bag('modifier', TH.generator.modifiers.length);
   bags.trait    = new Bag('trait', TH.generator.traitBank.length);
-  bags.log      = new Bag('log', TH.logBank.length);
+  bags.logSub      = new Bag('logSub', TH.logSystem.subsystems.length);
+  bags.logStat     = new Bag('logStat', TH.logSystem.statuses.length);
+  bags.status      = new Bag('status', TH.statusBank.length);
+  bags.phase       = new Bag('phase', TH.phaseBank.length);
+  bags.layer       = new Bag('layer', TH.layerBank.length);
+  bags.layersTitle = new Bag('layersTitle', TH.layersTitles.length);
+  bags.noteC       = new Bag('noteC', TH.analysisNotes.contrast.length);
+  bags.noteA       = new Bag('noteA', TH.analysisNotes.aligned.length);
   bags.reeval   = new Bag('reeval', TH.reevalMessages.length);
   bags.recall   = new Bag('recall', QS.recallTemplates.items.length);
   bags.prefixHi = new Bag('prefixHi', QS.variantPrefixes.hi.length);

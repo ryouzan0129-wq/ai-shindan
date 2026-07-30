@@ -132,41 +132,92 @@ body::after {
   to   { opacity: 1; transform: none; }
 }
 
-/* ---------- 5. HUD（常時ヘッダー） ------------------------------ */
+/* ---------- 5. HUD（常時ヘッダー・計測機器スタイル） ------------ */
 #hud {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px var(--pad);
+  padding: 10px var(--pad) 8px;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--line);
 }
-.hud-stats {
+.hud-main {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hud-item {
+  display: inline-flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px;
   font-size: var(--fs-meta);
   color: var(--ink-2);
-  min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
 }
-.hud-item { display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; }
-.hud-item .num { color: var(--ink); font-size: 15px; }
+.hud-count-box {
+  display: inline-block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+}
+#hud-count { display: inline-block; }
+#hud-count.roll { animation: count-roll 320ms var(--ease); }
+@keyframes count-roll {
+  from { transform: translateY(0.55em); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.hud-theme-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  line-height: 1.25;
+}
+.hud-phase {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
 .hud-theme-wrap b {
   color: var(--ink);
   font-weight: 600;
+  font-size: 14px;
+  max-width: 42vw;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 34vw;
+  white-space: nowrap;
 }
-.hud-sep { opacity: 0.5; }
+.hud-sub {
+  margin-top: 4px;
+  min-height: 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink-2) 70%, transparent);
+  user-select: none;
+}
+/* テーマ内進捗ゲージ：目盛り付き2pxバー（全体進捗は存在しない） */
+.hud-gauge {
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 3px;
+  background:
+    repeating-linear-gradient(90deg,
+      transparent 0 calc(10% - 1px), var(--line) calc(10% - 1px) 10%);
+}
+.hud-gauge i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 480ms var(--ease);
+}
 
 /* ---------- 6. ボタン / チップ ---------------------------------- */
 .btn {
@@ -701,4 +752,105 @@ body::after {
   .likert-opt:nth-child(1), .likert-opt:nth-child(5) { --size: 46px; }
   .likert-opt:nth-child(2), .likert-opt:nth-child(4) { --size: 40px; }
   .share-actions { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* =============================================================
+   v1.2 追加スタイル — フィードバック反映
+   （生きた解析コア / レイヤーメーター / 分析ノート）
+   ============================================================= */
+
+/* ---------- 20. ホーム：生きた解析コア -------------------------- */
+.home-core { width: 116px; height: 116px; margin: 0 auto 4px; color: var(--accent); }
+.core-svg { width: 100%; height: 100%; overflow: visible; }
+.core-ring, .core-dot { transform-box: view-box; transform-origin: 60px 60px; }
+.core-ring.r1 { animation: core-spin 16s linear infinite; }
+.core-ring.r2 { animation: core-spin 24s linear infinite reverse; }
+.core-dot.d1 { animation: core-spin 16s linear infinite; }
+.core-dot.d2 { animation: core-spin 24s linear infinite reverse; }
+.core-dot.d3 { animation: core-spin 32s linear infinite; }
+@keyframes core-spin { to { transform: rotate(360deg); } }
+.core-orb {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: core-breathe 4.2s var(--ease) infinite;
+}
+@keyframes core-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.055); }
+}
+.core-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: core-ping 3.6s var(--ease) infinite;
+}
+@keyframes core-ping {
+  0%   { transform: scale(1); opacity: 0.55; }
+  75%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ---------- 21. レイヤーメーター（Analysis画面） ---------------- */
+.layers {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+.layers-title {
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  letter-spacing: 0.08em;
+}
+.layer-row {
+  display: grid;
+  grid-template-columns: 8em 1fr auto;
+  gap: 12px;
+  align-items: center;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 1100ms var(--ease);
+}
+.layer-val { color: var(--ink); font-weight: 600; font-size: 11px; }
+
+/* ---------- 22. 分析ノート（約30問ごとの読み物） ---------------- */
+.note {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-left: 2px solid var(--accent-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: color-mix(in srgb, var(--accent-2) 6%, var(--surface));
+}
+.note-head {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.note p { font-size: 14px; line-height: 1.9; color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .core-ring, .core-dot, .core-orb, .core-halo { animation: none !important; }
+  .meter i, .hud-gauge i { transition: none; }
 }

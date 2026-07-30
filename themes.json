@@ -172,26 +172,81 @@
     "サンプルを再重み付けしています…"
   ],
 
-  "logBank": [
-    "Behavior Matrix — complete",
-    "Emotion Index — calculating",
-    "Decision Layer — verified",
-    "Consistency Check — {n} samples",
-    "Response Latency — nominal",
-    "Semantic Drift — 0.3%",
-    "Cluster Map — updating",
-    "Hypothesis Sync — ok",
-    "Pattern Buffer — 87% cached",
-    "Cross Reference — active",
-    "Trait Vector — normalized",
-    "Session Integrity — verified",
-    "Cognitive Model — v2.4 loaded",
-    "Outlier Scan — none detected",
-    "Recall Index — {n} entries",
-    "Noise Filter — engaged",
-    "Weight Table — rebalanced",
-    "Deep Layer — standby"
+  "logSystem": {
+    "_doc": "AIログ生成システム。subsystems × statuses ＋ 数値ステータス ＋ テーマ名差し込みで500通り以上を合成。",
+    "subsystems": [
+      "Behavior Matrix", "Emotion Index", "Decision Layer", "Consistency Check",
+      "Response Latency", "Semantic Drift", "Cluster Map", "Hypothesis Sync",
+      "Pattern Buffer", "Cross Reference", "Trait Vector", "Session Integrity",
+      "Cognitive Model", "Outlier Scan", "Recall Index", "Noise Filter",
+      "Weight Table", "Deep Layer", "Memory Cache", "Signal Router",
+      "Context Frame", "Sample Pool", "Inference Core", "Bias Monitor",
+      "Confidence Band", "Feature Map", "Layer Bridge", "Drift Monitor",
+      "Response Curve", "Persona Graph", "Axis Resolver", "Entropy Gauge",
+      "Baseline Sync", "Probe Scheduler", "Model Core", "Recall Buffer"
+    ],
+    "statuses": [
+      "complete", "calculating", "verified", "updating", "active", "nominal",
+      "stable", "synced", "cached", "indexing", "rebalanced", "engaged",
+      "standby", "warm", "loaded", "converging"
+    ]
+  },
+
+  "phaseBank": [
+    "Extended Analysis", "Pattern Analysis", "Behavior Analysis", "Trait Analysis",
+    "Signal Analysis", "Layer Analysis", "Context Analysis", "Response Analysis"
   ],
+
+  "statusBank": [
+    ["AI Precision", "High"],
+    ["Reasoning", "Extended"],
+    ["Memory", "Enabled"],
+    ["Cross Reference", "Active"],
+    ["Sampling", "Adaptive"],
+    ["Noise Filter", "On"],
+    ["Context Window", "Stable"],
+    ["Inference Depth", "L4"],
+    ["Drift Monitor", "Nominal"],
+    ["Session Sync", "Live"],
+    ["Trait Engine", "Warm"],
+    ["Recall Index", "Ready"],
+    ["Confidence Band", "Narrow"],
+    ["Model State", "Converging"]
+  ],
+
+  "layerBank": [
+    "Decision Layer", "Emotion Layer", "Habit Layer", "Memory Layer",
+    "Social Layer", "Value Layer", "Impulse Layer", "Focus Layer",
+    "Trust Layer", "Risk Layer"
+  ],
+
+  "layersTitles": [
+    "人格モデル更新中",
+    "反応プロファイル生成中",
+    "レイヤー整合を計測中",
+    "内部モデルを再構成中"
+  ],
+
+  "analysisNotes": {
+    "_doc": "分析ノート（約30問ごと）。実回答統計の方向から dir 語を選び、差異が大きければ contrast、一致していれば aligned のテンプレを使う（嘘のない文章になる）。",
+    "dir": {
+      "high": ["即断的な", "行動優先の", "外向的な"],
+      "low": ["慎重な", "熟考型の", "内省的な"],
+      "mixed": ["状況適応的な", "両面的な"]
+    },
+    "contrast": [
+      "「{themeA}」では{dirA}傾向があります。しかし「{themeB}」では逆の特徴が見られます。この差異について追加分析を行います。",
+      "{dirA}傾向と{dirB}傾向が同居しています。単一タイプでは説明できないため、複合仮説を維持します。",
+      "「{themeA}」と「{themeB}」の反応方向が一致していません。どちらが本来の傾向かを切り分けるため、対照質問を増やします。",
+      "「{themeB}」でのみ外れ値が検出されました。文脈依存の可能性があるため、再検証を予定しています。"
+    ],
+    "aligned": [
+      "「{themeA}」と「{themeB}」の回答は同じ方向を向いています。{dirA}傾向は複数領域で一貫しているようです。",
+      "「{themeA}」の回答には{dirA}特徴が繰り返し現れています。これが状況依存かどうかを検証します。",
+      "回答全体の揺らぎ幅は基準範囲内です。{dirA}傾向を主軸として仮説の重み付けを更新しました。",
+      "直近の回答は初期の「{themeA}」と整合しています。信頼できるサンプルとして解析深度を上げます。"
+    ]
+  },
 
   "titles": [
     { "min": 2000, "rank": 5, "label": "🌌 深層観測者", "rare": true },
