@@ -10,7 +10,7 @@
 
 'use strict';
 
-const CACHE = 'apd-v1.0.0';
+const CACHE = 'apd-v1.2.0';
 
 const PRECACHE = [
   './',
