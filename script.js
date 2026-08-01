@@ -668,10 +668,15 @@ const Progress = {
     const s = Store.state;
     const cap = Progress.ceiling();
     const prev = s.progress ?? 0;
+    const done = s.themesDone.length;          // 何テーマ目か
     const t = clamp(Clock.elapsed() / (s.sched?.targetMs || 1), 0, 1);
-    const curve = Math.round(15 + (cap - 15) * Math.pow(t, 0.9));  // 24→41→56→73→91…
-    const byRemain = prev + Math.max(1, Math.round((cap - prev) * (0.2 + rng.next() * 0.25)));
-    const next = clamp(Math.max(curve + rng.range(-3, 3), byRemain, prev + 2), prev + 1, cap);
+    // 序盤を抑えたS字カーブ（指数1.7）。序盤ほど1回の伸びも小さくする。
+    const curve = Math.round(6 + (cap - 6) * Math.pow(t, 1.7));
+    const remainStep = Math.round((cap - prev) * (0.14 + rng.next() * 0.16));
+    // 序盤（最初の3テーマ）は伸び幅に上限を設けて「あからさまな大ジャンプ」を防ぐ
+    const earlyCap = done <= 1 ? 12 : done <= 3 ? 16 : 99;
+    const raw = Math.max(curve, prev + Math.min(remainStep, earlyCap), prev + 2);
+    const next = clamp(raw, prev + 2, cap);
     s.progress = next;
     Store.save();
     return { value: next, delta: next - prev };
@@ -1090,21 +1095,51 @@ const Screens = {
     UI.syncGauge();
 
     // 回答ハンドラ（1回だけ・視覚フィードバック後に遷移）
+    // どんな例外が出ても画面が固まらないよう、失敗時は自己回復する。
     const card = document.querySelector('.q-card');
     let answered = false;
     card.querySelectorAll('[data-i]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         if (answered) return;
         answered = true;
-        btn.classList.add('picked');
-        const i = Number(btn.dataset.i);
-        const label = q.t === 'l' ? null : q.o[i];
-        QuestionEngine.record(theme, q, i, label);
-        UI.hudUpdate();
-        await sleep(230);
-        await Screens.afterAnswer(theme, recall);
+        try {
+          btn.classList.add('picked');
+          const i = Number(btn.dataset.i);
+          const label = q.t === 'l' ? null : q.o[i];
+          QuestionEngine.record(theme, q, i, label);
+          UI.hudUpdate();
+          await sleep(230);
+          await Screens.afterAnswer(theme, recall);
+        } catch (err) {
+          console.error('[APD] answer flow failed, recovering:', err);
+          answered = false;                 // ガードを解除して固まりを防ぐ
+          Screens.recover();                // 有効な画面へ復帰
+        }
       });
     });
+  },
+
+  /**
+   * 自己回復：現在の進行状態から正しい画面を描き直す。
+   * 演出中の一時的な例外で二度と進めなくなる事故を防ぐ最後の砦。
+   */
+  recover() {
+    try {
+      const t = Store.state.currentTheme;
+      if (!UI.inSession || !t) { Screens.home(); return; }
+      if (t.qIndex >= QuestionEngine.list(t).length) {
+        // テーマ境界で失敗 → 完了扱いにして次テーマへ
+        if (!Store.state.themesDone.some((x) => x.id === t.id)) {
+          Store.state.themesDone.push({ id: t.id, name: t.name });
+        }
+        ThemeEngine.begin();
+        UI.aurora(Store.state.currentTheme.hue);
+      }
+      UI.hudUpdate();
+      Screens.question();
+    } catch {
+      Screens.home();                       // それでも駄目ならホーム
+    }
   },
 
   /** 回答後の分岐：再評価イベント → 次の質問 or テーマ終了 */
@@ -1123,8 +1158,13 @@ const Screens = {
     Store.save();
 
     if (theme.qIndex >= QuestionEngine.list(theme).length) {
-      if (Scheduler.finaleDue()) await Screens.finale(theme);
-      else await Screens.interstitial(theme);
+      try {
+        if (Scheduler.finaleDue()) await Screens.finale(theme);
+        else await Screens.interstitial(theme);
+      } catch (err) {
+        console.error('[APD] interstitial failed, skipping to next theme:', err);
+        Screens.recover();
+      }
     } else {
       Screens.question();
     }
@@ -1433,6 +1473,7 @@ const Screens = {
           <div class="final-actions" style="--d:1150ms">
             <button id="btn-share" class="btn btn-primary" type="button">SNSでシェア</button>
             <button id="btn-real" class="btn btn-secondary" type="button">本当に診断したい方はこちら</button>
+            <button id="btn-home" class="btn btn-ghost" type="button">ホームへ戻る</button>
           </div>
           <div class="ad-slot" data-slot="share"></div>
         </div>
@@ -1443,6 +1484,7 @@ const Screens = {
       Store.reset();                          // 「本当の診断」＝この診断（真顔）
       Screens.bootSession(true);
     });
+    $('btn-home').addEventListener('click', () => { Store.reset(); Screens.home(); });
   },
 };
 
@@ -1535,3 +1577,12 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// 最後の安全網：セッション中に未捕捉の非同期エラーが起きても固まらせない
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[APD] unhandled rejection:', e.reason);
+  if (UI.inSession && typeof Screens?.recover === 'function') {
+    e.preventDefault();
+    Screens.recover();
+  }
+});
