@@ -634,52 +634,58 @@ body::after {
 .dlg-actions { display: flex; gap: 10px; }
 .dlg-actions .btn { flex: 1; padding: 12px 10px; }
 
-/* ---------- 14. シェア画面 -------------------------------------- */
-.share { gap: 20px; padding-bottom: 8px; }
-.share h2 { font-size: var(--fs-h2); text-align: center; }
+/* ---------- 14. フィナーレ ------------------------------------- */
+.finale .f-line { font-size: 17px; color: var(--ink); }
+.finale [data-m="face"] { font-weight: 600; }
 
-.result-card {
+/* 暗転オーバーレイ：完全な黒より僅かに浮かせた #030303（画面＝鏡）
+   カメラ・権限・撮影は一切使わない。 */
+#blackout {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #030303;
+  opacity: 0;
+  transition: opacity 700ms linear;   /* 明け：ゆっくり */
+  pointer-events: none;
+}
+#blackout.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition-duration: 400ms;         /* 暗転：約400ms */
+}
+
+/* 最終画面：淡々と、順にフェードイン */
+.finale-panel { justify-content: center; text-align: center; }
+.fade-seq { display: flex; flex-direction: column; gap: 28px; }
+.fade-seq > * {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fade-up 560ms var(--ease) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes fade-up { to { opacity: 1; transform: none; } }
+
+.punch { font-size: 19px; font-weight: 600; line-height: 2.1; }
+.fstat-list { width: 100%; max-width: 320px; margin: 0 auto; }
+.fstat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+.fstat b { font-size: 20px; color: var(--ink); }
+.final-actions {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 28px var(--pad);
-  text-align: center;
-}
-.result-card .rc-brand { font-size: var(--fs-meta); color: var(--ink-2); letter-spacing: 0.12em; }
-.rc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.rc-stat { display: flex; flex-direction: column; gap: 2px; }
-.rc-stat .num { font-size: 30px; line-height: 1.2; }
-.rc-stat .rc-label { font-size: var(--fs-meta); color: var(--ink-2); }
-.rc-title-badge {
-  margin: 4px auto 0;
-  padding: 8px 20px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface-strong);
-  font-weight: 700;
-}
-.rc-hook { font-size: var(--fs-meta); color: var(--ink-2); }
-
-/* 称号ランクごとのカード演出 */
-.result-card.rank-2 { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-.result-card.rank-3 {
-  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--line));
-  box-shadow: var(--shadow), 0 0 44px color-mix(in srgb, var(--accent-2) 22%, transparent);
-}
-.result-card.rank-4, .result-card.rank-5 {
-  border-color: color-mix(in srgb, var(--gold) 65%, transparent);
-  box-shadow: var(--shadow), 0 0 54px color-mix(in srgb, var(--gold) 26%, transparent);
-}
-.result-card.rank-4 .rc-title-badge,
-.result-card.rank-5 .rc-title-badge { border-color: var(--gold); color: var(--gold); }
-.result-card.rank-5 .rc-title-badge { font-size: 20px; padding: 12px 26px; }
-
-.share-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
 }
-.share-actions .btn { padding: 12px 8px; font-size: var(--fs-meta); }
 
 /* ---------- 15. 広告スロット ------------------------------------
    SDK未組込。中身が注入された時だけ枠が現れる（README参照） */
@@ -717,23 +723,6 @@ body::after {
   from { opacity: 0; transform: translate(-50%, 8px); }
 }
 
-/* ---------- 17. 印刷（PDF保存はブラウザの印刷機能を使用） -------- */
-@media print {
-  body { background: #fff; }
-  body::before, body::after,
-  #hud, #ai-log, .share-actions, .ad-slot, .share h2, #toast { display: none !important; }
-  #app { max-width: none; }
-  .result-card {
-    box-shadow: none;
-    border: 1px solid #ccc;
-    background: #fff;
-    color: #171A26;
-    margin: 40px auto;
-    max-width: 420px;
-  }
-  .result-card .rc-label, .rc-brand, .rc-hook { color: #5B6378; }
-}
-
 /* ---------- 18. reduced motion ---------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -751,7 +740,6 @@ body::after {
   .likert-opt { --size: 34px; }
   .likert-opt:nth-child(1), .likert-opt:nth-child(5) { --size: 46px; }
   .likert-opt:nth-child(2), .likert-opt:nth-child(4) { --size: 40px; }
-  .share-actions { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* =============================================================
@@ -852,5 +840,7 @@ body::after {
 
 @media (prefers-reduced-motion: reduce) {
   .core-ring, .core-dot, .core-orb, .core-halo { animation: none !important; }
+  .fade-seq > * { animation-duration: 0.01ms; animation-delay: 0ms; }
+  #blackout { transition-duration: 0.01ms; }   /* 暗転3秒の保持自体は維持 */
   .meter i, .hud-gauge i { transition: none; }
 }

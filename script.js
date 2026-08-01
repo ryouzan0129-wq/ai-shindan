@@ -6,7 +6,10 @@
  *   core   : Rng（シード付き乱数） / Bag（シャッフルバッグ） / Store（状態＋永続化）
  *   engine : ThemeEngine / QuestionEngine / HypothesisEngine / Scheduler / AnalysisEngine
  *   ui     : HUD / LogTicker / Toast / QuitDialog / Screens(Router)
- *   share  : CardRenderer(Canvas PNG) / Exporter
+ *   share  : Share（Web Share API / クリップボード）
+ *
+ * コンセプト：約10〜15分で必ず終わる。回答速度により到達質問数が自動調整され、
+ * 最後は「何もわかりませんでした。」→ 暗転（画面＝鏡）→ 無駄な◯分、で締める。
  *
  * 設計原則：
  *  - 完了予告（あと少し/99%等）の語彙は一切使わない
@@ -37,6 +40,22 @@ const esc = (s) =>
 
 /** 経過分（表示用） */
 const fmtMin = (ms) => Math.floor(ms / 60000);
+
+/** 「12分34秒」形式 */
+const fmtMinSec = (ms) =>
+  `${Math.floor(ms / 60000)}分${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}秒`;
+
+/**
+ * 実行時設定。診断は「約10〜15分で必ず終わる」——終了目標時刻をセッションごとに
+ * 抽選し、テーマ境界で判定する。回答が速い人ほど多くの質問に到達する（自動調整）。
+ * window.__APD_CONFIG__ で上書き可能（README参照）。
+ */
+const CFG = Object.assign({
+  targetMinMs: 10.5 * 60000,   // 終了目標時間の下限
+  targetMaxMs: 13.5 * 60000,   // 同上の上限（テーマ境界判定のため実測は約10〜15分に収まる）
+  maxAnswers: 220,             // 高速回答時の質問数上限
+  realTestUrl: null,           // 「本当に診断したい方はこちら」の遷移先（null = この診断をもう一度）
+}, (typeof window !== 'undefined' && window.__APD_CONFIG__) || {});
 
 /* =====================================================================
  * 1. core/Rng — シード付き乱数（mulberry32）
@@ -386,13 +405,13 @@ const QuestionEngine = {
     const s = Store.state;
     const base = QuestionEngine.list(theme)[theme.qIndex];
 
-    // --- リコール（約40〜60問に1回・10分以上前の実回答を引用） ---
+    // --- リコール（約40〜60問に1回・4分以上前の実回答を引用） ---
     if (Scheduler.recallDue()) {
       const past = QuestionEngine.pickRecallSource();
       if (past) {
         Scheduler.recallDone();
         const tpl = QS.recallTemplates.items[bags.recall.next()];
-        const min = Math.max(10, fmtMin(Date.now() - past.at));
+        const min = Math.max(1, fmtMin(Date.now() - past.at));
         return {
           q: {
             id: 'recall', t: 'b',
@@ -417,10 +436,10 @@ const QuestionEngine = {
     return { q: base, recall: false, prefix };
   },
 
-  /** リコール引用元：10分以上前・別テーマ・ラベル付き（choice/binary）の実回答 */
+  /** リコール引用元：4分以上前・別テーマ・ラベル付き（choice/binary）の実回答 */
   pickRecallSource() {
     const s = Store.state;
-    const cutoff = Date.now() - 10 * 60000;
+    const cutoff = Date.now() - 4 * 60000;
     const cands = s.answers.filter((a) =>
       a.at < cutoff && a.label && a.themeId !== s.currentTheme.id);
     return cands.length ? rng.pick(cands) : null;
@@ -446,7 +465,7 @@ const QuestionEngine = {
 /* =====================================================================
  * 7. engine/HypothesisEngine — 仮説の生成・更新・分岐
  *    信頼度は 55〜70% で開始 → 揺らぎながら上昇 → 上限93%で複合型に分岐。
- *    「永遠に確定しない」ことが診断継続の因果になる。
+ *    「確定しない」ことがプレイ中の診断継続の因果になる。
  * =================================================================== */
 const HypothesisEngine = {
   CAP: 93,
@@ -551,6 +570,7 @@ const Scheduler = {
       specialAtTheme: rng.range(3, 4),  // 特別演出インタースティシャル
       hypoAddAtTheme: rng.range(5, 6),  // 新仮説追加
       noteAt: rng.range(28, 34),        // 分析ノート（約30問ごと）
+      targetMs: rng.range(CFG.targetMinMs, CFG.targetMaxMs), // このセッションの終了目標
       hypoCursor: 0,
       prefixLastAt: -10,                // 接頭辞クールダウン
     };
@@ -583,6 +603,11 @@ const Scheduler = {
   noteDone() {
     Store.state.sched.noteAt = Store.state.answered + rng.range(28, 34);
     Store.save();
+  },
+  /** 診断終了の判定（テーマ境界で呼ぶ）：目標時間到達 or 質問数上限 */
+  finaleDue() {
+    return Clock.elapsed() >= (Store.state.sched.targetMs ?? Infinity)
+        || Store.state.answered >= CFG.maxAnswers;
   },
   prefixReady() {
     return Store.state.answered - Store.state.sched.prefixLastAt >= 4;
@@ -853,7 +878,7 @@ const QuitDialog = {
         QuitDialog.render();
       } else {
         QuitDialog.show(false);
-        Screens.share();          // 必ず終了できる
+        Screens.abort();          // 必ず終了できる
       }
     });
     // 背景タップ＝もどる（誤タップで終了させない）
@@ -922,6 +947,9 @@ const Screens = {
   bootSession(freshStart) {
     rng = new Rng(Store.state.seed);
     if (!Store.state.sched) Scheduler.init();
+    if (Store.state.sched.targetMs == null) {   // 旧バージョンからの復元
+      Store.state.sched.targetMs = rng.range(CFG.targetMinMs, CFG.targetMaxMs);
+    }
     UI.inSession = true;
     Clock.start();
     UI.hud(true);
@@ -1016,7 +1044,8 @@ const Screens = {
     Store.save();
 
     if (theme.qIndex >= QuestionEngine.list(theme).length) {
-      await Screens.interstitial(theme);
+      if (Scheduler.finaleDue()) await Screens.finale(theme);
+      else await Screens.interstitial(theme);
     } else {
       Screens.question();
     }
@@ -1133,200 +1162,151 @@ const Screens = {
     Screens.question();
   },
 
-  /* ---------- シェア（終了時のプレイ記録） ---------- */
-  share() {
-    // 統計をスナップショット → セッションは破棄（ダイアログの文言どおり）
+  /* ---------- フィナーレ（最終解析 → 暗転 → 記録） ---------- */
+
+  /** 記録スナップショット（リセット前に採取） */
+  snapshot() {
     Clock.pause();
-    const snap = {
-      answered: Store.state.answered,
-      themes: Store.state.themesDone.length,
-      minutes: fmtMin(Clock.elapsed()),
-      title: Titles.current(),
+    const s = Store.state;
+    const elapsedMs = Clock.elapsed();
+    return {
+      answered: s.answered,
+      themes: s.themesDone.length,
+      elapsedMs,
+      minutes: Math.max(1, fmtMin(elapsedMs)),
     };
+  },
+
+  /**
+   * 最終解析シーケンス。最後までAIは真面目に振る舞う：
+   *   通常の解析メッセージ → 「解析結果」…「何もわかりませんでした。」（間）
+   *   → 「あなたの今の顔です。」 → 400msで暗転（#030303）を約3秒維持
+   *   → フェードインで「人生で一番無駄な◯分を過ごしました。」
+   * カメラは使わない。権限も要求しない。画面を暗くするだけ。
+   */
+  async finale(theme) {
+    const s = Store.state;
+    s.themesDone.push({ id: theme.id, name: theme.name });
+    Store.save(true);
+    UI.setGauge(1);
+
+    const routine = [
+      AnalysisEngine.normalMsg(theme.name),
+      AnalysisEngine.normalMsg(theme.name),
+    ];
+    const lines = ['解析結果', '…', 'あなたについて…', '…', '何もわかりませんでした。'];
+
+    $('screen').innerHTML = `
+      <div class="screen interstitial finale">
+        <div class="inter-card card glass">
+          <div class="ldr-stage">${AnalysisEngine.loaderHTML()}</div>
+          <div class="msg-list" aria-live="polite">
+            ${routine.map((t, i) => `<p class="msg" data-m="r${i}">${esc(t)}</p>`).join('')}
+            ${lines.map((t, i) => `<p class="msg f-line" data-m="f${i}">${esc(t)}</p>`).join('')}
+            <p class="msg f-line" data-m="face">あなたの今の顔です。</p>
+          </div>
+        </div>
+      </div>`;
+
+    // 通常の解析に見せる導入
+    await sleep(rng.range(300, 500));
+    for (let i = 0; i < routine.length; i++) {
+      const el = document.querySelector(`[data-m="r${i}"]`);
+      el.classList.add('show');
+      await sleep(rng.range(650, 900));
+      el.classList.add('done');
+    }
+    await sleep(600);
+
+    // 本編：笑いはセリフではなく「間」で作る
+    const waits = [1000, 1100, 1100, 1200, 0];
+    for (let i = 0; i < lines.length; i++) {
+      document.querySelector(`[data-m="f${i}"]`).classList.add('show');
+      await sleep(waits[i]);
+    }
+    await sleep(2400);                        // 「何もわかりませんでした。」の間
+    document.querySelector('[data-m="face"]').classList.add('show');
+    await sleep(1600);
+
+    // 暗転：黒い画面＝鏡。約3秒、本人の顔が映る
+    const bo = document.createElement('div');
+    bo.id = 'blackout';
+    document.body.appendChild(bo);
+    void bo.offsetWidth;
+    bo.classList.add('on');                   // 400msで暗転
+    await sleep(450);
+    UI.stopTicker();
+    UI.hud(false);
+    const snap = Screens.snapshot();
+    Store.reset();                            // セッションはここで役目を終える
+    UI.inSession = false;
+    Screens.finalPanel(snap, false);          // 暗転の下で最終画面に差し替え
+    await sleep(3000);                        // 暗転を約3秒維持
+    bo.classList.remove('on');                // ゆっくり明ける
+    await sleep(750);
+    bo.remove();
+  },
+
+  /** 早期終了（終了ボタン経由）：演出は行わず記録だけを見せる */
+  abort() {
+    const snap = Screens.snapshot();
     Store.reset();
     UI.inSession = false;
     UI.stopTicker();
     UI.hud(false);
+    Screens.finalPanel(snap, true);
+  },
+
+  /** 最終画面：淡々と。煽らない・謝らない・説明しない */
+  finalPanel(snap, aborted) {
     UI.aurora(226);
-
-    const t = snap.title;
     $('screen').innerHTML = `
-      <div class="screen share">
-        <h2>プレイ記録</h2>
-        <div class="result-card card glass rank-${t.rank}" id="result-card">
-          <div class="rc-brand">AI超精密性格診断</div>
-          <div class="rc-grid">
-            <div class="rc-stat"><span class="num">${snap.answered}</span><span class="rc-label">回答数</span></div>
-            <div class="rc-stat"><span class="num">${snap.themes}</span><span class="rc-label">分析テーマ</span></div>
-            <div class="rc-stat"><span class="num">${snap.minutes}</span><span class="rc-label">プレイ時間（分）</span></div>
-            <div class="rc-stat"><span class="num">${t.rank}</span><span class="rc-label">分析ランク</span></div>
+      <div class="screen finale-panel">
+        <div class="fade-seq">
+          <p class="punch" style="--d:0ms">${aborted
+            ? '診断を中断しました。'
+            : `人生で一番無駄な${snap.minutes}分を過ごしました。`}</p>
+          <div class="fstat-list" style="--d:650ms">
+            <div class="fstat"><span>回答数</span><b class="num">${snap.answered}問</b></div>
+            <div class="fstat"><span>プレイ時間</span><b class="num">${fmtMinSec(snap.elapsedMs)}</b></div>
+            <div class="fstat"><span>分析テーマ</span><b class="num">${snap.themes}</b></div>
           </div>
-          <div class="rc-title-badge">${esc(t.label)}</div>
-          <p class="rc-hook">あなたは何問まで続けられる？</p>
+          <div class="final-actions" style="--d:1150ms">
+            <button id="btn-share" class="btn btn-primary" type="button">SNSでシェア</button>
+            <button id="btn-real" class="btn btn-secondary" type="button">本当に診断したい方はこちら</button>
+          </div>
+          <div class="ad-slot" data-slot="share"></div>
         </div>
-        <div class="share-actions">
-          <button id="ex-png"  class="btn btn-secondary" type="button">画像を保存</button>
-          <button id="ex-pdf"  class="btn btn-secondary" type="button">PDF</button>
-          <button id="ex-share" class="btn btn-secondary" type="button">共有</button>
-          <button id="ex-copy" class="btn btn-secondary" type="button">コピー</button>
-          <button id="ex-line" class="btn btn-secondary" type="button">LINE</button>
-          <button id="ex-x"    class="btn btn-secondary" type="button">X</button>
-        </div>
-        <button id="btn-home" class="btn btn-ghost" type="button">ホームへ</button>
-        <div class="ad-slot" data-slot="share"></div>
       </div>`;
-
-    Exporter.wire(snap);
-    $('btn-home').addEventListener('click', Screens.home);
-  },
-};
-
-/* =====================================================================
- * 14. share/CardRenderer — Canvas で結果カードPNGを描画（DOM非依存）
- * =================================================================== */
-const CardRenderer = {
-  /** @returns {Promise<Blob>} 1080×1350 のPNG */
-  async render(snap) {
-    const W = 1080, H = 1350;
-    const cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    const ctx = cv.getContext('2d');
-    const gold = snap.title.rank >= 4;
-
-    // 背景＋オーロラ
-    ctx.fillStyle = '#0B0E1A';
-    ctx.fillRect(0, 0, W, H);
-    const g1 = ctx.createRadialGradient(W * 0.25, H * 0.18, 0, W * 0.25, H * 0.18, 620);
-    g1.addColorStop(0, gold ? 'rgba(232,195,106,0.20)' : 'rgba(124,140,255,0.20)');
-    g1.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g1; ctx.fillRect(0, 0, W, H);
-    const g2 = ctx.createRadialGradient(W * 0.8, H * 0.85, 0, W * 0.8, H * 0.85, 640);
-    g2.addColorStop(0, 'rgba(79,216,200,0.16)');
-    g2.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
-
-    // カード枠
-    const rr = (x, y, w, h, r) => {
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-      else { // 旧ブラウザfallback
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-      }
-      ctx.closePath();
-    };
-    rr(90, 130, W - 180, H - 260, 48);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    ctx.strokeStyle = gold ? 'rgba(232,195,106,0.7)' : 'rgba(255,255,255,0.16)';
-    ctx.lineWidth = gold ? 4 : 2; ctx.stroke();
-
-    const F = '"Hiragino Sans","Noto Sans JP",sans-serif';
-    ctx.textAlign = 'center';
-
-    ctx.fillStyle = '#9AA3BF';
-    ctx.font = `600 34px ${F}`;
-    ctx.fillText('A I 超 精 密 性 格 診 断', W / 2, 240);
-    ctx.fillStyle = '#EDEFF7';
-    ctx.font = `700 44px ${F}`;
-    ctx.fillText('プレイ記録', W / 2, 320);
-
-    // 統計2×2
-    const stats = [
-      [String(snap.answered), '回答数'],
-      [String(snap.themes), '分析テーマ'],
-      [String(snap.minutes), 'プレイ時間（分）'],
-      [String(snap.title.rank), '分析ランク'],
-    ];
-    stats.forEach(([v, label], i) => {
-      const cx = i % 2 === 0 ? W * 0.32 : W * 0.68;
-      const cy = 470 + Math.floor(i / 2) * 220;
-      ctx.fillStyle = '#EDEFF7';
-      ctx.font = `800 96px ${F}`;
-      ctx.fillText(v, cx, cy);
-      ctx.fillStyle = '#9AA3BF';
-      ctx.font = `500 30px ${F}`;
-      ctx.fillText(label, cx, cy + 52);
+    $('btn-share').addEventListener('click', () => Share.record(snap, aborted));
+    $('btn-real').addEventListener('click', () => {
+      if (CFG.realTestUrl) { window.open(CFG.realTestUrl, '_blank', 'noopener'); return; }
+      Store.reset();                          // 「本当の診断」＝この診断（真顔）
+      Screens.bootSession(true);
     });
-
-    // 称号バッジ
-    const badgeY = 1000;
-    ctx.font = `700 ${snap.title.rank === 5 ? 60 : 48}px ${F}`;
-    const tw = ctx.measureText(snap.title.label).width;
-    rr(W / 2 - tw / 2 - 56, badgeY - 66, tw + 112, 104, 52);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
-    ctx.strokeStyle = gold ? '#E8C36A' : 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = gold ? '#E8C36A' : '#EDEFF7';
-    ctx.fillText(snap.title.label, W / 2, badgeY + 4);
-
-    ctx.fillStyle = '#9AA3BF';
-    ctx.font = `500 32px ${F}`;
-    ctx.fillText('あなたは何問まで続けられる？', W / 2, 1140);
-
-    return new Promise((res) => cv.toBlob((b) => res(b), 'image/png'));
   },
 };
 
 /* =====================================================================
- * 15. share/Exporter — PNG / PDF / 共有 / コピー / LINE / X
+ * 14. share — SNSシェア（Web Share API / クリップボードfallback）
  * =================================================================== */
-const Exporter = {
-  text(snap) {
-    return `AI超精密性格診断で${snap.answered}問回答・${snap.themes}テーマ・${snap.minutes}分。` +
-      `称号「${snap.title.label}」。あなたは何問まで続けられる？ #AI超精密性格診断`;
+const Share = {
+  text(snap, aborted) {
+    if (aborted) return `AI超精密性格診断、${snap.answered}問で離脱しました。`;
+    return `AI超精密性格診断を${snap.minutes}分やった結果\n` +
+           `「何もわかりませんでした。」\n` +
+           `人生で一番無駄な${snap.minutes}分でした。`;
   },
   url() { return location.href.split('#')[0]; },
-
-  wire(snap) {
-    $('ex-png').addEventListener('click', async () => {
-      const blob = await CardRenderer.render(snap);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'ai-shindan-record.png';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    });
-
-    $('ex-pdf').addEventListener('click', () => window.print()); // 印刷CSSでカードのみ出力
-
-    $('ex-share').addEventListener('click', async () => {
-      const text = Exporter.text(snap);
-      try {
-        const blob = await CardRenderer.render(snap);
-        const file = new File([blob], 'record.png', { type: 'image/png' });
-        if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ text, files: [file] });
-          return;
-        }
-        if (navigator.share) { await navigator.share({ text, url: Exporter.url() }); return; }
-      } catch { /* キャンセル等は無視 */ }
-      Exporter.copy(text);
-    });
-
-    $('ex-copy').addEventListener('click', () =>
-      Exporter.copy(`${Exporter.text(snap)} ${Exporter.url()}`));
-
-    $('ex-line').addEventListener('click', () => {
-      const u = `https://social-plugins.line.me/lineit/share?url=${
-        encodeURIComponent(Exporter.url())}&text=${encodeURIComponent(Exporter.text(snap))}`;
-      window.open(u, '_blank', 'noopener');
-    });
-
-    $('ex-x').addEventListener('click', () => {
-      const u = `https://twitter.com/intent/tweet?text=${
-        encodeURIComponent(Exporter.text(snap))}&url=${encodeURIComponent(Exporter.url())}`;
-      window.open(u, '_blank', 'noopener');
-    });
-  },
-
-  async copy(text) {
+  async record(snap, aborted) {
+    const text = Share.text(snap, aborted);
     try {
-      await navigator.clipboard.writeText(text);
+      if (navigator.share) { await navigator.share({ text, url: Share.url() }); return; }
+    } catch { return; /* ユーザーによるキャンセル */ }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${Share.url()}`);
       UI.toast('コピーしました');
-    } catch {
-      UI.toast('コピーできませんでした');
-    }
+    } catch { UI.toast('コピーできませんでした'); }
   },
 };
 

@@ -1,7 +1,7 @@
 {
   "name": "AI超精密性格診断",
   "short_name": "AI性格診断",
-  "description": "最新AIがあなたを多角的に分析します。あなたは何問まで続けられる？",
+  "description": "最新AIがあなたを多角的に分析します。",
   "lang": "ja",
   "start_url": "./index.html",
   "scope": "./",
