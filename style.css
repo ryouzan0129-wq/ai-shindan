@@ -865,3 +865,83 @@ body::after {
   #blackout { transition-duration: 0.01ms; }   /* 暗転3秒の保持自体は維持 */
   .meter i, .hud-gauge i { transition: none; }
 }
+
+/* =============================================================
+   Real Edition スタイル
+   ============================================================= */
+.real-badge {
+  font-size: 13px; font-weight: 700; vertical-align: middle;
+  padding: 3px 10px; border-radius: 999px; margin-left: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+}
+.q-idx { font-size: var(--fs-meta); color: var(--ink-2); font-feature-settings:"tnum"; }
+
+/* 結果レポート */
+.real-result { gap: 16px; padding-bottom: 8px; }
+.rr-report { text-align: center; padding: 28px var(--pad); }
+.rr-report.rare {
+  border-color: color-mix(in srgb, var(--gold) 65%, transparent);
+  box-shadow: var(--shadow), 0 0 48px color-mix(in srgb, var(--gold) 24%, transparent);
+}
+.rr-kicker { font-size: var(--fs-meta); letter-spacing: 0.18em; color: var(--ink-2); }
+.rr-rare {
+  display: inline-block; margin: 8px auto 0; padding: 3px 14px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: var(--gold);
+  border: 1px solid color-mix(in srgb, var(--gold) 60%, transparent);
+}
+.rr-type { font-size: 30px; font-weight: 800; margin: 10px 0 6px; letter-spacing: 0.02em; }
+.rr-report.rare .rr-type { color: var(--gold); }
+.rr-summary { color: var(--ink-2); font-size: 15px; }
+.rr-conf { margin-top: 14px; font-size: var(--fs-meta); color: var(--ink-2); }
+.rr-conf .num { color: var(--accent); font-size: 18px; }
+
+.rr-section { padding: var(--pad); }
+.rr-h { font-size: 15px; margin-bottom: 14px; letter-spacing: 0.04em; }
+
+/* レーダー */
+.rr-radar-wrap { display: grid; place-items: center; margin-bottom: 18px; }
+.radar-svg { width: 100%; max-width: 300px; height: auto; }
+.radar-label { font-size: 10px; fill: var(--ink-2); }
+.radar-data {
+  transform-box: view-box; transform-origin: 130px 130px;
+  transform: scale(0.2); opacity: 0;
+  transition: transform 900ms var(--ease), opacity 700ms var(--ease);
+}
+
+/* 特徴量バー */
+.rbars { display: flex; flex-direction: column; gap: 10px; }
+.rbar-row { display: grid; grid-template-columns: 6em 1fr 2.2em; align-items: center; gap: 12px; }
+.rbar-label { font-size: var(--fs-meta); color: var(--ink-2); }
+.rbar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.rbar i { display: block; height: 100%; width: 0; border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 1000ms var(--ease); }
+.rbar-val { font-size: var(--fs-meta); color: var(--ink); text-align: right; font-feature-settings:"tnum"; }
+
+.rr-comments { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.rr-comments li { font-size: 14px; line-height: 1.7; color: var(--ink); }
+.rr-comments b { color: var(--accent-2); }
+
+.rr-report-text { font-size: 15px; line-height: 2; }
+
+/* 向いていること */
+.rr-apt-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; font-size: var(--fs-meta); color: var(--ink-2); }
+.rr-apt-row b { color: var(--gold); letter-spacing: 2px; font-size: 14px; }
+.rr-apt-list { font-size: 14px; margin: 4px 0 0; color: var(--ink); }
+.rr-advice { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.rr-advice p { font-size: 14px; line-height: 1.8; }
+.rr-advice b { color: var(--accent-2); font-size: var(--fs-meta); }
+
+/* 相性 */
+.rr-match { display: flex; flex-direction: column; gap: 12px; }
+.rr-match > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rr-match-label { font-size: var(--fs-meta); color: var(--ink-2); margin-right: 4px; }
+
+.rr-note { font-size: 11px; color: var(--ink-2); text-align: center; opacity: 0.75; line-height: 1.7; padding: 0 8px; }
+.rr-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-data { transition: none; transform: scale(1); opacity: 1; }
+  .rbar i { transition: none; }
+}

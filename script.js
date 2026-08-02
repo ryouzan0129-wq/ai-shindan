@@ -1479,10 +1479,18 @@ const Screens = {
         </div>
       </div>`;
     $('btn-share').addEventListener('click', () => Share.record(snap, aborted));
-    $('btn-real').addEventListener('click', () => {
+    $('btn-real').addEventListener('click', async () => {
       if (CFG.realTestUrl) { window.open(CFG.realTestUrl, '_blank', 'noopener'); return; }
-      Store.reset();                          // 「本当の診断」＝この診断（真顔）
-      Screens.bootSession(true);
+      // Real Edition へ切り替え（real.json を読み込んで起動）
+      Store.reset();
+      try { history.replaceState(null, '', location.pathname + '?mode=real'); } catch { /* 環境依存・任意 */ }
+      try {
+        if (!RJ) RJ = await fetch('./real.json').then((r) => r.json());
+        RealScreens.home();
+        RealScreens.begin();   // ボタン導線からは直接開始（ホームを経由しない）
+      } catch {
+        Screens.home();
+      }
     });
     $('btn-home').addEventListener('click', () => { Store.reset(); Screens.home(); });
   },
@@ -1508,6 +1516,397 @@ const Share = {
       await navigator.clipboard.writeText(`${text}\n${Share.url()}`);
       UI.toast('コピーしました');
     } catch { UI.toast('コピーできませんでした'); }
+  },
+};
+
+/* =====================================================================
+ * 15. Real Edition — 本当に結果が出る参考エンタメ診断
+ *   ジョーク版の演出資産（ローダー/ログ/オーロラ/ガラスUI）を再利用し、
+ *   質問・採点・タイプ判定・結果画面のみ差し替える。全コンテンツは real.json 駆動。
+ *   採点は決定論（乱数不使用）＝同じ回答なら毎回同じ結果。
+ * =================================================================== */
+/** @type {any} */ let RJ = null;   // real.json
+
+const RealEngine = {
+  /** 生の寄与を合算 → 各軸スコア(0..100)。決定論。 */
+  score(answers) {
+    const raw = {};
+    for (const a of RJ.axes) raw[a.id] = 0;
+    for (const ans of answers) {
+      const q = RJ.questions[ans.qi];
+      if (q.t === 'l') {                       // likert: value0..4 → -2..2 を乗算
+        const mag = ans.value - 2;
+        for (const [k, v] of Object.entries(q.w)) raw[k] += v * mag;
+      } else {                                 // choice: 選択肢のベクトル
+        for (const [k, v] of Object.entries(q.w[ans.value])) raw[k] += v;
+      }
+    }
+    // 各軸を理論min-maxで正規化（決定論・回答内容だけで決まる）
+    const range = RealEngine._range();
+    const out = {};
+    for (const a of RJ.axes) {
+      const { lo, hi } = range[a.id];
+      const t = hi > lo ? (raw[a.id] - lo) / (hi - lo) : 0.5;
+      out[a.id] = Math.round(clamp(t, 0, 1) * 100);
+    }
+    return out;
+  },
+
+  /** 各軸の理論上の最小・最大寄与（正規化の基準）。質問データから一度だけ算出しキャッシュ。 */
+  _rangeCache: null,
+  _range() {
+    if (RealEngine._rangeCache) return RealEngine._rangeCache;
+    const r = {};
+    for (const a of RJ.axes) r[a.id] = { lo: 0, hi: 0 };
+    for (const q of RJ.questions) {
+      if (q.t === 'l') {
+        for (const [k, v] of Object.entries(q.w)) {
+          // likert寄与は v*(-2..2)
+          r[k].lo += Math.min(v * 2, v * -2);
+          r[k].hi += Math.max(v * 2, v * -2);
+        }
+      } else {
+        // choiceは各軸で「選べる最小/最大の寄与」を加算
+        const per = {};
+        for (const opt of q.w) for (const [k, v] of Object.entries(opt)) (per[k] ??= []).push(v);
+        for (const a of RJ.axes) {
+          const vals = per[a.id] || [0];
+          r[a.id].lo += Math.min(0, ...vals);
+          r[a.id].hi += Math.max(0, ...vals);
+        }
+      }
+    }
+    RealEngine._rangeCache = r;
+    return r;
+  },
+
+  /** コサイン類似度で最も近いタイプを判定（単一最大軸では決めない）。 */
+  classify(scores) {
+    const vec = RJ.axes.map((a) => scores[a.id]);
+    let best = null, bestSim = -1, second = 0;
+    for (const type of RJ.types) {
+      const pv = RJ.axes.map((a) => type.proto[a.id]);
+      const sim = RealEngine._cosine(vec, pv);
+      if (sim > bestSim) { second = bestSim; bestSim = sim; best = type; }
+      else if (sim > second) second = sim;
+    }
+    // レア＝輪郭がくっきり（高類似 かつ 2位と離れている）
+    const rare = bestSim >= 0.985 && (bestSim - second) >= 0.012;
+    return { type: best, sim: bestSim, rare };
+  },
+  _cosine(a, b) {
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+  },
+
+  /** AI Confidence(75..98)：軸内寄与のブレが小さい＝一貫性が高いほど高い。決定論。 */
+  confidence(answers) {
+    // 各軸で「同方向の寄与が揃っているか」を測る（符号一致率ベース）
+    const dir = {};
+    for (const a of RJ.axes) dir[a.id] = [];
+    for (const ans of answers) {
+      const q = RJ.questions[ans.qi];
+      const w = q.t === 'l' ? q.w : q.w[ans.value];
+      const mag = q.t === 'l' ? (ans.value - 2) : 1;
+      for (const [k, v] of Object.entries(w)) {
+        const s = Math.sign(v * mag);
+        if (s !== 0) dir[k].push(s);
+      }
+    }
+    let consist = [];
+    for (const a of RJ.axes) {
+      const arr = dir[a.id];
+      if (arr.length < 2) continue;
+      const pos = arr.filter((x) => x > 0).length;
+      const ratio = Math.max(pos, arr.length - pos) / arr.length; // 0.5..1
+      consist.push((ratio - 0.5) * 2);                            // 0..1
+    }
+    const mean = consist.length ? consist.reduce((x, y) => x + y, 0) / consist.length : 0.5;
+    return Math.round(75 + clamp(mean, 0, 1) * 23);               // 75..98
+  },
+
+  /** レポート本文を生成（4ブロック連結・300〜500字目安）。差し替え1点でLLM化可能。 */
+  generateReport(scores, type, rng2) {
+    const R = RJ.report;
+    const sorted = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id]);
+    const a = sorted[0].name, b = sorted[1].name, c = sorted[sorted.length - 1].name;
+    const d = sorted[2].name;
+    const pick = (arr) => arr[rng2.int(arr.length)];
+    const intro = pick(R.typeIntro[type.id]);
+    const strength = pick(R.strength).replaceAll('{a}', a).replaceAll('{b}', b);
+    const detail = pick(R.detail).replaceAll('{a}', a).replaceAll('{b}', b).replaceAll('{d}', d);
+    const caveat = pick(R.caveat).replaceAll('{a}', a).replaceAll('{c}', c);
+    const closing = pick(R.closing);
+    return `${intro}${strength}${detail}${caveat}${closing}`;
+  },
+
+  /** 特徴量コメント（high/mid/lowをスコア帯で選択） */
+  comment(axisId, score, rng2) {
+    const band = score >= 67 ? 'high' : score >= 40 ? 'mid' : 'low';
+    const pool = RJ.comments[axisId][band];
+    return pool[rng2.int(pool.length)];
+  },
+
+  /** ★評価（1..5）を関連軸スコアから算出 */
+  stars(scoreAvg) { return clamp(Math.round(scoreAvg / 20), 1, 5); },
+};
+
+const RealScreens = {
+  state: null,   // { answers:[{qi,value}], order:[...] }
+
+  home() {
+    UI.inSession = false;
+    UI.stopTicker();
+    UI.hud(false);
+    UI.aurora(200);
+    $('screen').innerHTML = `
+      <div class="screen home">
+        <div class="home-core" aria-hidden="true">
+          <svg class="core-svg" viewBox="0 0 120 120">
+            <defs><radialGradient id="rcoreG" cx="50%" cy="42%" r="62%">
+              <stop offset="0%" stop-color="#B9C4FF"/><stop offset="55%" stop-color="#7C8CFF"/>
+              <stop offset="100%" stop-color="#4FD8C8"/></radialGradient></defs>
+            <circle class="core-ring r1" cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 6" opacity=".5"/>
+            <circle class="core-ring r2" cx="60" cy="60" r="41" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1 4" opacity=".35"/>
+            <circle class="core-orb" cx="60" cy="60" r="23" fill="url(#rcoreG)"/>
+          </svg>
+        </div>
+        <h1>AI性格診断 <span class="real-badge">Real</span></h1>
+        <p class="sub">回答傾向からあなたの特性を解析します</p>
+        <p class="eta">約3〜5分 · 45問</p>
+        <div class="home-actions">
+          <button id="rbtn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
+          <button id="rbtn-joke" class="btn btn-ghost" type="button">遊びの診断にもどる</button>
+        </div>
+        <div class="ad-slot" data-slot="home"></div>
+      </div>`;
+    $('rbtn-start').addEventListener('click', () => RealScreens.begin());
+    $('rbtn-joke').addEventListener('click', () => { history.replaceState(null, '', location.pathname); Screens.home(); });
+  },
+
+  begin() {
+    RealScreens.state = { answers: [], i: 0 };
+    UI.inSession = true;
+    Clock.start();
+    $('hud').hidden = false;
+    UI.aurora(200);
+    RealScreens.question();
+  },
+
+  hud() {
+    $('hud-count').textContent = String(RealScreens.state.i);
+    $('hud-phase').textContent = 'REAL ANALYSIS';
+    $('hud-theme').textContent = '性格特性';
+    $('hud-progress').textContent = '';
+    const total = RJ.questions.length;
+    UI.setGauge(RealScreens.state.i / total);   // Realは全体進捗を出してよい（もうすぐ終わる）
+  },
+
+  question() {
+    const st = RealScreens.state;
+    if (st.i >= RJ.questions.length) { RealScreens.analysis(); return; }
+    const q = RJ.questions[st.i];
+    RealScreens.hud();
+
+    let body;
+    if (q.t === 'l') {
+      body = `<div class="likert">
+        <div class="likert-row">${[0,1,2,3,4].map((n)=>
+          `<button class="likert-opt" type="button" data-i="${n}" aria-label="${n===0?'そう思わない':n===4?'そう思う':'段階'+(n+1)}"></button>`).join('')}</div>
+        <div class="likert-labels"><span>そう思わない</span><span>そう思う</span></div></div>`;
+    } else {
+      body = `<div class="opt-list">${q.o.map((o,n)=>
+        `<button class="opt" type="button" data-i="${n}">${esc(o)}</button>`).join('')}</div>`;
+    }
+    $('screen').innerHTML = `
+      <div class="screen question">
+        <div class="q-eyebrow"><span class="chip">◈ 特性分析</span>
+          <span class="q-idx">${st.i+1} / ${RJ.questions.length}</span></div>
+        <div class="q-card card glass entering">
+          <p class="q-text">${esc(q.q)}</p>${body}
+        </div>
+      </div>`;
+    let done = false;
+    document.querySelectorAll('.q-card [data-i]').forEach((btn)=>{
+      btn.addEventListener('click', async ()=>{
+        if (done) return; done = true;
+        btn.classList.add('picked');
+        st.answers.push({ qi: st.i, value: Number(btn.dataset.i) });
+        st.i++;
+        UI.hudUpdate?.();
+        RealScreens.hud();
+        await sleep(200);
+        RealScreens.question();
+      });
+    });
+  },
+
+  /** 解析演出（ログ＋Confidence算出）→ 結果 */
+  async analysis() {
+    UI.setGauge(1);
+    const logs = rng.shuffle([...RJ.analysisLog]).slice(0, 5);
+    $('screen').innerHTML = `
+      <div class="screen interstitial">
+        <div class="inter-card card glass">
+          <div class="ldr-stage">${AnalysisEngine.loaderHTML()}</div>
+          <div class="msg-list" aria-live="polite">
+            ${logs.map((t,i)=>`<p class="msg" data-m="${i}">${esc(t)}</p>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    for (let i=0;i<logs.length;i++){
+      const el=document.querySelector(`[data-m="${i}"]`);
+      el.classList.add('show'); await sleep(rng.range(420,640)); el.classList.add('done');
+    }
+    await sleep(500);
+    RealScreens.result();
+  },
+
+  result() {
+    const st = RealScreens.state;
+    // 決定論のため、回答列から安定シードを作る（同じ回答→同じ文面選択）
+    let seed = 2166136261;
+    for (const a of st.answers) { seed ^= (a.qi*13 + a.value*7 + 1); seed = Math.imul(seed, 16777619) >>> 0; }
+    const rng2 = new Rng(seed);
+
+    const scores = RealEngine.score(st.answers);
+    const { type, rare } = RealEngine.classify(scores);
+    const conf = RealEngine.confidence(st.answers);
+    const report = RealEngine.generateReport(scores, type, rng2);
+    const apt = RJ.aptitudes[type.id];
+    const goodTypes = type.match.good.map((id)=>RJ.types.find((t)=>t.id===id));
+    const learnTypes = type.match.learn.map((id)=>RJ.types.find((t)=>t.id===id));
+
+    const sortedAxes = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id]);
+    const jobsAvg = (scores.logic+scores.planning+scores.challenge)/3;
+    const hobAvg = (scores.creativity+scores.curiosity+scores.flexibility)/3;
+    const studyAvg = (scores.logic+scores.curiosity+scores.caution)/3;
+
+    const bar = (id)=>{
+      const s = scores[id];
+      return `<div class="rbar-row">
+        <span class="rbar-label">${esc(RJ.axes.find(a=>a.id===id).name)}</span>
+        <span class="rbar"><i data-w="${s}"></i></span>
+        <span class="rbar-val num">${s}</span></div>`;
+    };
+    const stars = (n)=>'★★★★★☆☆☆☆☆'.slice(5-n,10-n);
+
+    UI.inSession = false; UI.stopTicker(); Clock.pause();
+    $('hud').hidden = true; UI.aurora(type.proto.creativity>70?286:200);
+
+    $('screen').innerHTML = `
+      <div class="screen real-result">
+        <div class="rr-report card glass${rare?' rare':''}">
+          <div class="rr-head">
+            <div class="rr-kicker">AI解析レポート</div>
+            ${rare?'<div class="rr-rare">稀な明瞭さ</div>':''}
+            <div class="rr-type">${esc(type.icon)} ${esc(type.name)}</div>
+            <div class="rr-summary">${esc(type.summary)}</div>
+            <div class="rr-conf">AI Confidence <b class="num">${conf}</b>%</div>
+          </div>
+        </div>
+
+        <div class="rr-section card glass">
+          <h3 class="rr-h">特徴量プロファイル</h3>
+          <div class="rr-radar-wrap">${RealScreens.radarSVG(scores)}</div>
+          <div class="rbars">${RJ.axes.map(a=>bar(a.id)).join('')}</div>
+        </div>
+
+        <div class="rr-section card glass">
+          <h3 class="rr-h">AIコメント</h3>
+          <ul class="rr-comments">
+            ${sortedAxes.slice(0,3).concat(sortedAxes.slice(-1)).map(a=>
+              `<li><b>${esc(a.name)}</b>：${esc(RealEngine.comment(a.id,scores[a.id],rng2))}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="rr-section card glass">
+          <h3 class="rr-h">総合分析</h3>
+          <p class="rr-report-text">${esc(report)}</p>
+        </div>
+
+        <div class="rr-section card glass">
+          <h3 class="rr-h">向いていること</h3>
+          <div class="rr-apt">
+            <div class="rr-apt-row"><span>向いている仕事</span><b>${stars(RealEngine.stars(jobsAvg))}</b></div>
+            <p class="rr-apt-list">${apt.jobs.map(esc).join(' · ')}</p>
+            <div class="rr-apt-row"><span>向いている趣味</span><b>${stars(RealEngine.stars(hobAvg))}</b></div>
+            <p class="rr-apt-list">${apt.hobbies.map(esc).join(' · ')}</p>
+            <div class="rr-apt-row"><span>向いている学習法</span><b>${stars(RealEngine.stars(studyAvg))}</b></div>
+            <p class="rr-apt-list">${apt.study.map(esc).join(' · ')}</p>
+          </div>
+          <div class="rr-advice">
+            <p><b>ストレスとの付き合い方</b><br>${esc(apt.stress)}</p>
+            <p><b>伸びる環境</b><br>${esc(apt.grow)}</p>
+            <p><b>苦手になりやすい状況</b><br>${esc(apt.weak)}</p>
+          </div>
+        </div>
+
+        <div class="rr-section card glass">
+          <h3 class="rr-h">相性</h3>
+          <div class="rr-match">
+            <div><span class="rr-match-label">良い相性</span>
+              ${goodTypes.map(t=>`<span class="chip">${esc(t.icon)} ${esc(t.name)}</span>`).join(' ')}</div>
+            <div><span class="rr-match-label">学べる相手</span>
+              ${learnTypes.map(t=>`<span class="chip">${esc(t.icon)} ${esc(t.name)}</span>`).join(' ')}</div>
+          </div>
+        </div>
+
+        <p class="rr-note">${esc(RJ.report.note)}</p>
+
+        <div class="rr-actions">
+          <button id="rr-share" class="btn btn-primary" type="button">結果をシェア</button>
+          <button id="rr-again" class="btn btn-secondary" type="button">もう一度</button>
+          <button id="rr-joke" class="btn btn-ghost" type="button">遊びの診断へ</button>
+        </div>
+        <div class="ad-slot" data-slot="share"></div>
+      </div>`;
+
+    // バー＆レーダーのアニメ発火
+    requestAnimationFrame(()=>{
+      document.querySelectorAll('.rbar i').forEach((i)=>{ i.style.width = i.dataset.w+'%'; });
+      const poly = document.querySelector('.radar-data');
+      if (poly){ poly.style.transform='scale(1)'; poly.style.opacity='1'; }
+    });
+
+    $('rr-share').addEventListener('click', ()=>RealScreens.share(type, conf, scores));
+    $('rr-again').addEventListener('click', ()=>RealScreens.begin());
+    $('rr-joke').addEventListener('click', ()=>{ history.replaceState(null,'',location.pathname); Store.reset(); Screens.home(); });
+  },
+
+  /** 10軸レーダーチャート（依存なしSVG） */
+  radarSVG(scores) {
+    const N = RJ.axes.length, cx = 130, cy = 130, R = 96;
+    const pt = (i, r) => {
+      const ang = -Math.PI/2 + (i / N) * Math.PI * 2;
+      return [cx + Math.cos(ang)*r, cy + Math.sin(ang)*r];
+    };
+    const grid = [0.25,0.5,0.75,1].map((g)=>{
+      const p = RJ.axes.map((_,i)=>pt(i, R*g).map(n=>n.toFixed(1)).join(',')).join(' ');
+      return `<polygon points="${p}" fill="none" stroke="var(--line)" stroke-width="1"/>`;
+    }).join('');
+    const spokes = RJ.axes.map((_,i)=>{ const [x,y]=pt(i,R); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`; }).join('');
+    const dataPts = RJ.axes.map((a,i)=>pt(i, R*(scores[a.id]/100)).map(n=>n.toFixed(1)).join(',')).join(' ');
+    const labels = RJ.axes.map((a,i)=>{ const [x,y]=pt(i,R+16); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" class="radar-label" text-anchor="middle" dominant-baseline="middle">${esc(a.name)}</text>`; }).join('');
+    return `<svg viewBox="0 0 260 260" class="radar-svg">
+      <defs><linearGradient id="radarFill" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="var(--accent-2)" stop-opacity=".5"/></linearGradient></defs>
+      ${grid}${spokes}
+      <polygon class="radar-data" points="${dataPts}" fill="url(#radarFill)" stroke="var(--accent)" stroke-width="2"/>
+      ${labels}</svg>`;
+  },
+
+  share(type, conf, scores) {
+    const top = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id])[0].name;
+    const text = `AI性格診断(Real)の結果は「${type.name}」でした。\n最も高い特性は${top}。AI Confidence ${conf}%。`;
+    const url = location.href.split('#')[0];
+    (async()=>{
+      try { if (navigator.share){ await navigator.share({ text, url }); return; } } catch { return; }
+      try { await navigator.clipboard.writeText(`${text}\n${url}`); UI.toast('コピーしました'); }
+      catch { UI.toast('コピーできませんでした'); }
+    })();
   },
 };
 
@@ -1566,7 +1965,19 @@ async function init() {
   bags.abortSingle = new Bag('abortSingle', TH.abortLines.single.length, 'meta');
 
   QuitDialog.wire();
-  Screens.home();
+
+  // モード分岐：?mode=real なら Real Edition を起動
+  const isReal = new URLSearchParams(location.search).get('mode') === 'real';
+  if (isReal) {
+    try {
+      RJ = await fetch('./real.json').then((r) => r.json());
+      RealScreens.home();
+    } catch {
+      Screens.home();   // real.json 取得失敗時はジョーク版へフォールバック
+    }
+  } else {
+    Screens.home();
+  }
 
   // PWA: Service Worker 登録（GitHub Pages のサブパスでも相対で動作）
   if ('serviceWorker' in navigator) {
