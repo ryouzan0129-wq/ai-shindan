@@ -3178,5 +3178,260 @@
   "construct": [
    "golem"
   ]
+ },
+ "gameStats": {
+  "_doc": "各ステータス = Σ(軸スコア×重み)。25〜99に正規化。LUKはハッシュ微揺らぎ（決定論）。",
+  "stats": [
+   {
+    "id": "STR",
+    "name": "STR",
+    "w": {
+     "challenge": 0.6,
+     "stress": 0.4
+    }
+   },
+   {
+    "id": "DEX",
+    "name": "DEX",
+    "w": {
+     "flexibility": 0.6,
+     "challenge": 0.4
+    }
+   },
+   {
+    "id": "INT",
+    "name": "INT",
+    "w": {
+     "logic": 0.7,
+     "curiosity": 0.3
+    }
+   },
+   {
+    "id": "LUK",
+    "name": "LUK",
+    "w": {
+     "creativity": 0.5,
+     "curiosity": 0.5
+    }
+   },
+   {
+    "id": "AGI",
+    "name": "AGI",
+    "w": {
+     "flexibility": 0.5,
+     "challenge": 0.3,
+     "stress": 0.2
+    }
+   },
+   {
+    "id": "CHA",
+    "name": "CHA",
+    "w": {
+     "empathy": 0.5,
+     "cooperation": 0.5
+    }
+   },
+   {
+    "id": "VIT",
+    "name": "VIT",
+    "w": {
+     "stress": 0.6,
+     "caution": 0.4
+    }
+   },
+   {
+    "id": "MND",
+    "name": "MND",
+    "w": {
+     "logic": 0.4,
+     "planning": 0.4,
+     "caution": 0.2
+    }
+   }
+  ]
+ },
+ "attributes": {
+  "_doc": "最上位特徴量から属性を決定。",
+  "map": {
+   "challenge": "fire",
+   "caution": "ice",
+   "flexibility": "wind",
+   "stress": "thunder",
+   "empathy": "light",
+   "creativity": "dark",
+   "curiosity": "nature",
+   "logic": "none",
+   "cooperation": "light",
+   "planning": "none"
+  },
+  "defs": [
+   {
+    "id": "fire",
+    "name": "炎",
+    "color": "#e8663a",
+    "icon": "🔥"
+   },
+   {
+    "id": "ice",
+    "name": "氷",
+    "color": "#5ab8e8",
+    "icon": "❄"
+   },
+   {
+    "id": "wind",
+    "name": "風",
+    "color": "#6ad8a0",
+    "icon": "🌪"
+   },
+   {
+    "id": "thunder",
+    "name": "雷",
+    "color": "#e8c33a",
+    "icon": "⚡"
+   },
+   {
+    "id": "light",
+    "name": "光",
+    "color": "#f0e8b0",
+    "icon": "✨"
+   },
+   {
+    "id": "dark",
+    "name": "闇",
+    "color": "#9a6ad8",
+    "icon": "🌑"
+   },
+   {
+    "id": "nature",
+    "name": "自然",
+    "color": "#8ad86a",
+    "icon": "🌿"
+   },
+   {
+    "id": "none",
+    "name": "無",
+    "color": "#9aa3bf",
+    "icon": "⭘"
+   }
+  ]
+ },
+ "titles": {
+  "_doc": "prefix(属性/最上位軸由来)×core(タイプ群)を決定論選択。",
+  "prefix": {
+   "fire": [
+    "蒼炎の",
+    "紅蓮の",
+    "灼熱の"
+   ],
+   "ice": [
+    "氷結の",
+    "静氷の",
+    "白銀の"
+   ],
+   "wind": [
+    "疾風の",
+    "蒼天の",
+    "流風の"
+   ],
+   "thunder": [
+    "雷鳴の",
+    "閃光の",
+    "轟雷の"
+   ],
+   "light": [
+    "聖光の",
+    "黎明の",
+    "慈愛の"
+   ],
+   "dark": [
+    "深淵の",
+    "宵闇の",
+    "幽玄の"
+   ],
+   "nature": [
+    "翠緑の",
+    "大地の",
+    "森羅の"
+   ],
+   "none": [
+    "無銘の",
+    "静寂の",
+    "悠久の"
+   ]
+  },
+  "core": [
+   "探究者",
+   "守護者",
+   "開拓者",
+   "案内人",
+   "賢者",
+   "覗く者",
+   "導き手",
+   "放浪者",
+   "観測者",
+   "調停者",
+   "創造者",
+   "挑戦者"
+  ]
+ },
+ "skills": {
+  "_doc": "上位4軸をゲーム風スキル名へ。",
+  "map": {
+   "logic": "盤面を読む",
+   "caution": "慎重な判断",
+   "challenge": "最後までやり抜く",
+   "empathy": "仲間を守る",
+   "flexibility": "臨機応変",
+   "creativity": "発想の飛躍",
+   "cooperation": "連携の要",
+   "planning": "完全なる段取り",
+   "curiosity": "未知への探究",
+   "stress": "不屈の精神"
+  }
+ },
+ "rarity": {
+  "_doc": "rarityScore = 最高軸*0.5 + typeSim*100*0.3 + confidence*0.2。閾値で5段。",
+  "tiers": [
+   {
+    "id": "legend",
+    "name": "LEGEND",
+    "min": 90,
+    "color": "#ff5a8a",
+    "glow": "#ff5a8a",
+    "stars": 5
+   },
+   {
+    "id": "rainbow",
+    "name": "RAINBOW",
+    "min": 84,
+    "color": "#8a6ad8",
+    "glow": "#6ad8c4",
+    "stars": 5
+   },
+   {
+    "id": "gold",
+    "name": "GOLD",
+    "min": 76,
+    "color": "#e8c36a",
+    "glow": "#e8c36a",
+    "stars": 4
+   },
+   {
+    "id": "silver",
+    "name": "SILVER",
+    "min": 66,
+    "color": "#c4ccd8",
+    "glow": "#c4ccd8",
+    "stars": 3
+   },
+   {
+    "id": "bronze",
+    "name": "BRONZE",
+    "min": 0,
+    "color": "#c8925a",
+    "glow": "#c8925a",
+    "stars": 2
+   }
+  ]
  }
 }

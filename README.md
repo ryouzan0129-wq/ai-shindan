@@ -295,3 +295,32 @@ PromptGenerator … features+type → 英語プロンプト（"Hero, Blue Hair, 
 ### カスタマイズ
 - タイプ追加：`real.json` の `types[]` に `proto`（10軸）と `group` を追加。
 - アバターパーツ追加：`avatar.json` の各配列にSVGパスを追加するだけ（バッグ長は自動追従）。
+
+---
+
+## v6.0：ゲームクリア体験
+
+Real Edition のリザルトを、RPGの「クリア画面」風に刷新しました。診断ロジックは不変です。
+
+### ゲームリザルト画面
+診断結果から以下を**決定論的**に算出（同じ回答＝同じ結果）:
+- **ステータス**（LV＋STR/DEX/INT/LUK/AGI/CHA/VIT/MND）… 10特徴量→8ステータスの重みテーブル（`real.json` の `gameStats`）で算出、25〜99に正規化。
+- **レアリティ**（BRONZE/SILVER/GOLD/RAINBOW/LEGEND）… 上位軸の突出＋タイプ適合＋Confidence から rarityScore を合成し5段階。フレーム色・オーラ・星が変化。誰でも到達可能（“輪郭の明瞭さ”がレア）。
+- **属性**（炎/氷/風/雷/光/闇/自然/無）… 最上位特徴量から決定。色つきチップ表示。
+- **称号**（例「蒼炎の探究者」）… 属性×タイプ群のテンプレ合成。
+- **スキル**（3〜5）… 上位4軸をゲーム風スキル名に変換。
+- 演出：魔法陣（CSS conic-gradient回転）＋属性オーラ＋**順次表示**（RESULT→レア→タイプ→LV→ステータス→スキル…）。画面タップ／「スキップ」で即完了。`prefers-reduced-motion` で即時。
+
+### Real Edition の隠し要素化
+ネタバレ防止のため、ホームの導線を隠しました。
+- ホーム右下の「Version 6.0.0」を**1.5秒以内に5回タップ** → 「Developer Mode / Real Edition Unlocked」→ 起動。
+- または**ジョーク版を一度クリア**（オチまで到達）で解禁（`localStorage: apd.meta.realUnlocked`）。
+- 解禁後はホームに「Real Edition」ボタンが常設。URLは常に単一（`?mode=real` 等は使いません）。
+
+### 性別選択・Body分離
+- 診断開始前に**男性/女性/どちらでもない**の3択。Bodyのみ変化・顔パーツは共通。
+- `avatar.json` の `bodyTemplates[group][gender]` で保持。armor/weapon を body から独立レイヤー化。
+- **将来のAI Body差し替え**に備え、`SVGGenerator.bodyProvider(features)` を分離。ここだけ差し替えれば他レイヤー（顔・髪・装備）は無変更で動きます。
+
+### 共有画像（ゲームカード風）
+「結果を画像でシェア」で、レア枠＋魔法陣風背景＋アバター＋LV/主要ステータス＋属性＋称号＋タイプ名＋URLのキャラクターカード（1080×1350 PNG）を生成します。

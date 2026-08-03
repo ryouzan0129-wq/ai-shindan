@@ -953,3 +953,109 @@ body::after {
 .rr-report.rare .rr-avatar .avatar-svg {
   box-shadow: 0 0 40px color-mix(in srgb, var(--gold) 30%, transparent); }
 .real-badge { display:inline-block; }
+
+/* =============================================================
+   v6.0 ゲームクリア体験
+   ============================================================= */
+/* 順次表示：data-reveal は初期非表示→.shownでフェードアップ */
+[data-reveal] { opacity: 0; transform: translateY(14px); transition: opacity .4s var(--ease), transform .4s var(--ease); }
+[data-reveal].shown { opacity: 1; transform: none; }
+
+.game-result { gap: 14px; --rarity-color: #c8925a; --rarity-glow: #c8925a; --attr-color: #7c8cff; }
+.gr-banner {
+  text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .5em;
+  color: var(--rarity-color); text-indent: .5em; padding-top: 4px;
+}
+.gr-rarity { text-align: center; }
+.gr-stars { color: var(--rarity-color); letter-spacing: 3px; font-size: 20px;
+  filter: drop-shadow(0 0 8px var(--rarity-glow)); }
+.gr-rarity-name { display: block; font-size: 11px; letter-spacing: .28em; color: var(--ink-2); margin-top: 2px; }
+
+/* キャラカード（魔法陣＋アバター） */
+.gr-card { position: relative; text-align: center; padding: 26px var(--pad) 22px; overflow: hidden;
+  border-color: color-mix(in srgb, var(--rarity-color) 50%, var(--line));
+  box-shadow: var(--shadow), 0 0 40px color-mix(in srgb, var(--rarity-glow) 22%, transparent); }
+.gr-magic {
+  position: absolute; left: 50%; top: 116px; width: 320px; height: 320px;
+  transform: translate(-50%,-50%); border-radius: 50%; pointer-events: none; opacity: .5;
+  background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--attr-color) 60%, transparent), transparent 55%);
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 61%, #000 72%, transparent 73%);
+  mask: radial-gradient(circle, transparent 60%, #000 61%, #000 72%, transparent 73%);
+  animation: gr-spin 12s linear infinite;
+}
+.gr-magic::after {
+  content: ""; position: absolute; inset: 12px; border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--attr-color) 50%, transparent);
+  animation: gr-spin 18s linear infinite reverse;
+}
+@keyframes gr-spin { to { transform: rotate(360deg); } }
+.gr-avatar { position: relative; width: 200px; height: 200px; margin: 0 auto 10px; }
+.gr-avatar .avatar-svg { width: 100%; height: 100%; border-radius: 22px;
+  filter: drop-shadow(0 8px 22px rgba(0,0,0,.4)); }
+.gr-type { font-size: 26px; font-weight: 800; }
+.gr-title-line { font-size: 14px; color: var(--attr-color); margin-top: 4px; font-weight: 600; }
+.gr-meta { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 12px; }
+.gr-attr { font-size: 13px; font-weight: 700; color: var(--c); padding: 3px 12px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+.gr-lv { font-size: 14px; color: var(--ink-2); }
+.gr-lv .num { font-size: 24px; color: var(--ink); margin-left: 2px; }
+
+/* レアリティ別フレーム強度 */
+.rarity-gold .gr-card { --rarity-color:#e8c36a; --rarity-glow:#e8c36a; }
+.rarity-silver .gr-card { --rarity-color:#c4ccd8; --rarity-glow:#c4ccd8; }
+.rarity-bronze .gr-card { --rarity-color:#c8925a; --rarity-glow:#c8925a; }
+.rarity-rainbow .gr-card { --rarity-color:#8a6ad8; --rarity-glow:#6ad8c4;
+  border-image: linear-gradient(120deg,#ff5a8a,#e8c36a,#6ad8c4,#8a6ad8) 1; }
+.rarity-legend .gr-card { --rarity-color:#ff5a8a; --rarity-glow:#ff5a8a;
+  border-image: linear-gradient(120deg,#ff5a8a,#e8c36a,#ff5a8a) 1; }
+.rarity-rainbow .gr-magic, .rarity-legend .gr-magic { opacity: .8; }
+
+/* ステータス表 */
+.gr-section { padding: var(--pad); }
+.gr-h { font-size: 14px; margin-bottom: 12px; letter-spacing: .05em; color: var(--ink); }
+.gs-list { display: flex; flex-direction: column; gap: 8px; }
+.gs-row { display: grid; grid-template-columns: 3.2em 1fr 2.4em; align-items: center; gap: 10px; }
+.gs-name { font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: var(--attr-color); letter-spacing: .05em; }
+.gs-bar { height: 9px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.gs-bar i { display: block; height: 100%; width: 0; border-radius: 5px;
+  background: linear-gradient(90deg, var(--attr-color), var(--accent-2)); transition: width .9s var(--ease); }
+.gs-val { text-align: right; font-weight: 700; font-feature-settings:"tnum"; }
+
+/* スキル */
+.gr-skills { display: flex; flex-wrap: wrap; gap: 8px; }
+.gr-skill { font-size: 13px; padding: 6px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--attr-color) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--attr-color) 30%, transparent); }
+
+.gr-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* スキップボタン（右下固定） */
+.gr-skip { position: fixed; right: 16px; bottom: 16px; z-index: 30;
+  font-size: 12px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--ink-2);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+
+/* 性別選択 */
+.gender-grid { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; margin: 8px auto 16px; }
+.gender-opt { display: flex; align-items: center; gap: 14px; padding: 18px 20px; font-size: 17px; font-weight: 600;
+  cursor: pointer; text-align: left; transition: transform .12s var(--ease), border-color .12s var(--ease); }
+.gender-opt:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.gender-ico { font-size: 24px; color: var(--accent); width: 28px; text-align: center; }
+
+/* Version 秘密 / 解禁トースト */
+.home-version { position: absolute; right: 14px; bottom: 12px; font-size: 11px; color: var(--ink-2);
+  opacity: .6; user-select: none; cursor: default; letter-spacing: .04em; }
+.unlock-toast { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(.8);
+  z-index: 60; padding: 22px 34px; border-radius: 16px; text-align: center; line-height: 1.7;
+  font-family: ui-monospace, Menlo, monospace; font-size: 15px; letter-spacing: .1em; color: var(--accent-2);
+  background: color-mix(in srgb, var(--bg) 88%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 50%, transparent);
+  opacity: 0; transition: opacity .35s var(--ease), transform .35s var(--ease); pointer-events: none; }
+.unlock-toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+.unlock-note { font-size: 13px; color: var(--accent-2); letter-spacing: .04em; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { transition: none; }
+  .gr-magic, .gr-magic::after { animation: none; }
+  .gs-bar i { transition: none; }
+  .unlock-toast { transition: none; }
+}

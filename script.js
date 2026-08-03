@@ -1012,32 +1012,60 @@ const Screens = {
           <button id="btn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
           ${resumable ? `<button id="btn-resume" class="btn btn-ghost resume" type="button">
               前回の続きから — ${s.answered}問回答済み</button>` : ''}
-          <button id="btn-toreal" class="btn btn-ghost" type="button">本当に診断したい方はこちら</button>
+          ${Meta.data.realUnlocked ? `<button id="btn-real-open" class="btn btn-secondary" type="button">Real Edition</button>` : ''}
         </div>
         <div class="ad-slot" data-slot="home"></div>
+        <div class="home-version" id="home-version">Version 6.0.0</div>
+        <div id="unlock-toast" class="unlock-toast" hidden>Developer Mode<br>Real Edition Unlocked</div>
       </div>`;
     $('btn-start').addEventListener('click', () => {
       Store.reset();
       Screens.bootSession(true);
     });
-    $('btn-toreal').addEventListener('click', async () => {
-      try { history.replaceState(null, '', location.pathname + '?mode=real'); } catch {}
-      try {
-        if (!RJ || !AV) {
-          [RJ, AV] = await Promise.all([
-            RJ ? Promise.resolve(RJ) : fetch('./real.json').then((r) => r.json()),
-            AV ? Promise.resolve(AV) : fetch('./avatar.json').then((r) => r.json()),
-          ]);
-        }
-        RealScreens.home();
-      } catch { /* 失敗時はジョーク版に留まる */ }
-    });
+    if (Meta.data.realUnlocked) {
+      $('btn-real-open').addEventListener('click', () => Screens.openReal());
+    }
+    // 隠しコマンド：Version を1.5秒以内に5回タップ
+    Screens.wireVersionSecret();
     if (resumable) {
       $('btn-resume').addEventListener('click', () => {
         Store.state = s;
         Screens.bootSession(false);
       });
     }
+  },
+
+  /** Version 5連打（1.5秒以内）で Real Edition 解禁 */
+  wireVersionSecret() {
+    const el = $('home-version');
+    if (!el) return;
+    let taps = [];
+    el.addEventListener('click', () => {
+      const now = Date.now();
+      taps = taps.filter((t) => now - t < 1500);
+      taps.push(now);
+      if (taps.length >= 5) {
+        taps = [];
+        Meta.data.realUnlocked = true; Meta.save();
+        const t = $('unlock-toast');
+        if (t) { t.hidden = false; t.classList.add('show');
+          setTimeout(() => Screens.openReal(), 700); }
+        else Screens.openReal();
+      }
+    });
+  },
+
+  /** Real Edition を起動（データ読込込み・同一URL） */
+  async openReal() {
+    try {
+      if (!RJ || !AV) {
+        [RJ, AV] = await Promise.all([
+          RJ ? Promise.resolve(RJ) : fetch('./real.json').then((r) => r.json()),
+          AV ? Promise.resolve(AV) : fetch('./avatar.json').then((r) => r.json()),
+        ]);
+      }
+      RealScreens.home();
+    } catch { /* 失敗時はジョーク版に留まる */ }
   },
 
   /** セッション開始/再開の共通処理 */
@@ -1472,6 +1500,12 @@ const Screens = {
   /** 最終画面：淡々と。煽らない・謝らない・説明しない */
   finalPanel(snap, aborted) {
     UI.aurora(226);
+    // ジョーク版を「クリア」（フィナーレ到達）したら Real Edition を解禁
+    let justUnlocked = false;
+    if (!aborted && !Meta.data.realUnlocked) {
+      Meta.data.realUnlocked = true; Meta.save();
+      justUnlocked = true;
+    }
     $('screen').innerHTML = `
       <div class="screen finale-panel">
         <div class="fade-seq">
@@ -1483,33 +1517,19 @@ const Screens = {
             <div class="fstat"><span>プレイ時間</span><b class="num">${fmtMinSec(snap.elapsedMs)}</b></div>
             <div class="fstat"><span>分析テーマ</span><b class="num">${snap.themes}</b></div>
           </div>
+          ${justUnlocked ? `<p class="unlock-note" style="--d:900ms">…隠し要素が解放されました。</p>` : ''}
           <div class="final-actions" style="--d:1150ms">
             <button id="btn-share" class="btn btn-primary" type="button">SNSでシェア</button>
-            <button id="btn-real" class="btn btn-secondary" type="button">本当に診断したい方はこちら</button>
+            ${(!aborted) ? `<button id="btn-real" class="btn btn-secondary" type="button">Real Edition を試す</button>` : ''}
             <button id="btn-home" class="btn btn-ghost" type="button">ホームへ戻る</button>
           </div>
           <div class="ad-slot" data-slot="share"></div>
         </div>
       </div>`;
     $('btn-share').addEventListener('click', () => Share.record(snap, aborted));
-    $('btn-real').addEventListener('click', async () => {
-      if (CFG.realTestUrl) { window.open(CFG.realTestUrl, '_blank', 'noopener'); return; }
-      // Real Edition へ切り替え（real.json を読み込んで起動）
-      Store.reset();
-      try { history.replaceState(null, '', location.pathname + '?mode=real'); } catch { /* 環境依存・任意 */ }
-      try {
-        if (!RJ || !AV) {
-          [RJ, AV] = await Promise.all([
-            RJ ? Promise.resolve(RJ) : fetch('./real.json').then((r) => r.json()),
-            AV ? Promise.resolve(AV) : fetch('./avatar.json').then((r) => r.json()),
-          ]);
-        }
-        RealScreens.home();
-        RealScreens.begin();   // ボタン導線からは直接開始
-      } catch {
-        Screens.home();
-      }
-    });
+    if (!aborted) {
+      $('btn-real').addEventListener('click', () => { Store.reset(); Screens.openReal(); });
+    }
     $('btn-home').addEventListener('click', () => { Store.reset(); Screens.home(); });
   },
 };
@@ -1670,6 +1690,59 @@ const RealEngine = {
   stars(scoreAvg) { return clamp(Math.round(scoreAvg / 20), 1, 5); },
 };
 
+/* ---------------------------------------------------------------------
+ * GameEngine — 診断結果をゲーム要素へ変換（すべて決定論・real.json駆動）
+ * ------------------------------------------------------------------- */
+const GameEngine = {
+  _hash(scores, salt) {
+    let h = 2166136261 ^ salt;
+    for (const a of RJ.axes) { h ^= (scores[a.id] * 3 + salt); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;
+  },
+
+  /** 8ステータス（25〜99）＋LV */
+  stats(scores) {
+    const out = {};
+    for (const st of RJ.gameStats.stats) {
+      let v = 0;
+      for (const [k, w] of Object.entries(st.w)) v += (scores[k] ?? 0) * w;
+      // LUK は決定論ハッシュで微揺らぎ
+      if (st.id === 'LUK') v = (v + (GameEngine._hash(scores, 77) % 20)) / 1.1;
+      out[st.id] = clamp(Math.round(25 + v * 0.74), 25, 99);
+    }
+    const avg = Object.values(out).reduce((a, b) => a + b, 0) / Object.keys(out).length;
+    out.LV = clamp(Math.round((avg - 25) / 74 * 78 + 12), 1, 99);
+    return out;
+  },
+
+  attribute(scores) {
+    const top = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id])[0].id;
+    const id = RJ.attributes.map[top] || 'none';
+    return RJ.attributes.defs.find((a) => a.id === id) || RJ.attributes.defs[7];
+  },
+
+  title(scores, attr) {
+    const pre = RJ.titles.prefix[attr.id] || RJ.titles.prefix.none;
+    const h = GameEngine._hash(scores, 131);
+    const p = pre[h % pre.length];
+    const c = RJ.titles.core[(h >> 3) % RJ.titles.core.length];
+    return p + c;
+  },
+
+  skills(scores) {
+    const top = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id]).slice(0, 4);
+    return top.map((a) => RJ.skills.map[a.id]).filter(Boolean);
+  },
+
+  /** レアリティ（rarityScore→5段） */
+  rarity(scores, sim, conf) {
+    const maxAxis = Math.max(...RJ.axes.map((a) => scores[a.id]));
+    const score = maxAxis * 0.5 + sim * 100 * 0.3 + conf * 0.2;
+    for (const t of RJ.rarity.tiers) if (score >= t.min) return { ...t, score: Math.round(score) };
+    return RJ.rarity.tiers[RJ.rarity.tiers.length - 1];
+  },
+};
+
 /** @type {any} */ let AV = null;   // avatar.json
 
 /* ---------------------------------------------------------------------
@@ -1688,7 +1761,7 @@ const AvatarBuilder = {
     return AvatarBuilder.hash(answers, salt) % len;
   },
 
-  build(answers, scores, type) {
+  build(answers, scores, type, gender = 'neutral') {
     const g = type.group;
     const P = AvatarBuilder.pickIdx;
     const mood = AvatarBuilder.mood(scores);
@@ -1698,9 +1771,11 @@ const AvatarBuilder = {
       creativity: 5, cooperation: 6, planning: 11, curiosity: 8, stress: 12 };
     const hairColorIdx = (hueMap[topAxis] ?? 0) % AV.hairColors.length;
     const groupExtras = AvatarBuilder.groupExtras(g, answers);
+    const equip = (AV.equipByGroup && AV.equipByGroup[g]) || { armor: 0, weapon: 0 };
 
     return {
       type, group: g,
+      gender: ['male', 'female', 'neutral'].includes(gender) ? gender : 'neutral',
       typeColor: AV.typeColors[type.id] || '#7c8cff',
       bg: P(answers, 'bg', AV.background.length),
       face: P(answers, 'face', AV.face.length),
@@ -1711,11 +1786,13 @@ const AvatarBuilder = {
       nose: P(answers, 'nose', AV.nose.length),
       mouth: mouthIdx >= 0 ? mouthIdx : 0,
       ears: (g === 'holy' || g === 'dragon') ? Math.max(0, AV.ears.findIndex((e) => e.pointed)) : P(answers, 'ears', AV.ears.length),
-      beard: P(answers, 'beard', AV.beard.length),
+      beard: (gender === 'male') ? P(answers, 'beard', AV.beard.length) : 0,
       scar: scores.stress > 75 ? P(answers, 'scar', AV.scar.length) : 0,
       glasses: scores.logic > 80 ? (1 + P(answers, 'glass', AV.glasses.length - 1)) : 0,
       mole: P(answers, 'mole', AV.mole.length),
       accessory: P(answers, 'acc', AV.accessory.length),
+      armor: equip.armor,
+      weapon: equip.weapon,
       ...groupExtras,
       moodName: mood.name,
     };
@@ -1769,14 +1846,17 @@ class SVGGenerator extends ImageGenerator {
 
     L.push(`<rect x="0" y="0" width="320" height="320" fill="${bg}"/>`);
     L.push(`<circle cx="160" cy="150" r="150" fill="${C}" opacity="0.12"/>`);
-    const body = AV.bodyTemplates[f.group] || AV.bodyTemplates.human;
-    if (body.wings) L.push(SVGGenerator.wings(C, f.group));
-    // body（首から下）→ 耳 → 顔 の順で頭が体に乗る
-    L.push(path(body.base, C, '#0b0e1a', 3));
-    L.push(path(body.base, 'rgba(255,255,255,0.08)', 'none', 0));
+    // ---- body（将来AIアセットに差し替え可能な独立プロバイダ）----
+    const bodyObj = SVGGenerator.bodyProvider(f);
+    if (bodyObj.wings) L.push(SVGGenerator.wings(C, f.group));
+    L.push(path(bodyObj.base, C, '#0b0e1a', 3));
+    L.push(path(bodyObj.base, 'rgba(255,255,255,0.08)', 'none', 0));
+    // ---- armor / weapon（bodyから独立）----
+    if (AV.armor && AV.armor[f.armor]) L.push(path(AV.armor[f.armor].d, 'rgba(255,255,255,0.14)', '#0b0e1a', 2));
+    if (AV.weapon && AV.weapon[f.weapon]) L.push(path(AV.weapon[f.weapon].d, '#c4ccd8', '#0b0e1a', 2.5));
+    // ---- 頭部 ----
     L.push(path(AV.ears[f.ears].d, '#f0d3b0', '#0b0e1a', 2.5));
     L.push(path(AV.face[f.face].d, '#f0d3b0', '#0b0e1a', 3));
-    // 顔パーツ
     { const b = AV.eyebrows[f.eyebrows]; L.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
     { const e = AV.eyes[f.eyes]; L.push(path(e.d, '#fff', '#0b0e1a', 2)); L.push(path(e.pupil, '#2b2b3a', 'none', 0)); }
     L.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
@@ -1785,15 +1865,24 @@ class SVGGenerator extends ImageGenerator {
     L.push(path(AV.scar[f.scar].d, 'none', '#cc9966', 2.5));
     L.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
     L.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
-    // 髪は顔の上に重ねて輪郭を締める
     L.push(path(AV.hair[f.hair].d, hair, '#0b0e1a', 2.5));
-    // 頭部装備・装飾
     L.push(path(AV.horn[f.horn].d, C, '#0b0e1a', 2.5));
     L.push(path(AV.helmet[f.helmet].d, C, '#0b0e1a', 3));
     L.push(path(AV.accessory[f.accessory].d, '#e8c36a', '#0b0e1a', 1.5));
     L.push(SVGGenerator.effect(f.effect, C));
     L.push(`<rect x="3" y="3" width="314" height="314" rx="24" fill="none" stroke="${C}" stroke-width="3" opacity="0.6"/>`);
     return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">${L.join('')}</svg>`;
+  }
+
+  /**
+   * bodyProvider — Bodyだけを供給する独立関数。
+   * 将来ここを AI生成アセット（PNG/SVG）に差し替えれば、他レイヤーは無変更で動く。
+   * @returns {{base:string, wings?:boolean}}
+   */
+  static bodyProvider(f) {
+    const g = AV.bodyTemplates[f.group] || AV.bodyTemplates.human;
+    const byGender = g[f.gender] || g.neutral || g.male || g;
+    return byGender.base ? byGender : { base: byGender };
   }
 
   static wings(C, g) {
@@ -1873,16 +1962,36 @@ const RealScreens = {
         <p class="eta">約3〜5分 · 45問</p>
         <div class="home-actions">
           <button id="rbtn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
-          <button id="rbtn-joke" class="btn btn-ghost" type="button">遊びの診断にもどる</button>
+          <button id="rbtn-joke" class="btn btn-ghost" type="button">ジョーク診断へ</button>
         </div>
         <div class="ad-slot" data-slot="home"></div>
       </div>`;
-    $('rbtn-start').addEventListener('click', () => RealScreens.begin());
-    $('rbtn-joke').addEventListener('click', () => { history.replaceState(null, '', location.pathname); Screens.home(); });
+    $('rbtn-start').addEventListener('click', () => RealScreens.gender());
+    $('rbtn-joke').addEventListener('click', () => { RealScreens.toJoke(); });
   },
 
-  begin() {
-    RealScreens.state = { answers: [], i: 0 };
+  /** 性別選択（Bodyのみ変化・顔共通）→ begin */
+  gender() {
+    UI.inSession = false;
+    $('screen').innerHTML = `
+      <div class="screen home">
+        <h1>キャラクター設定</h1>
+        <p class="sub">アバターの体型を選んでください</p>
+        <div class="gender-grid">
+          <button class="gender-opt card glass" data-g="male" type="button"><span class="gender-ico">♂</span>男性</button>
+          <button class="gender-opt card glass" data-g="female" type="button"><span class="gender-ico">♀</span>女性</button>
+          <button class="gender-opt card glass" data-g="neutral" type="button"><span class="gender-ico">◇</span>どちらでもない</button>
+        </div>
+        <button id="rbtn-back" class="btn btn-ghost" type="button">もどる</button>
+      </div>`;
+    document.querySelectorAll('.gender-opt').forEach((b) => {
+      b.addEventListener('click', () => RealScreens.begin(b.dataset.g));
+    });
+    $('rbtn-back').addEventListener('click', () => RealScreens.home());
+  },
+
+  begin(gender = 'neutral') {
+    RealScreens.state = { answers: [], i: 0, gender };
     UI.inSession = true;
     Clock.start();
     $('hud').hidden = false;
@@ -1961,133 +2070,152 @@ const RealScreens = {
 
   result() {
     const st = RealScreens.state;
-    // 決定論のため、回答列から安定シードを作る（同じ回答→同じ文面選択）
     let seed = 2166136261;
     for (const a of st.answers) { seed ^= (a.qi*13 + a.value*7 + 1); seed = Math.imul(seed, 16777619) >>> 0; }
     const rng2 = new Rng(seed);
 
     const scores = RealEngine.score(st.answers);
-    const { type, rare } = RealEngine.classify(scores);
+    const { type, sim, rare } = RealEngine.classify(scores);
     const conf = RealEngine.confidence(st.answers);
     const report = RealEngine.generateReport(scores, type, rng2);
     const apt = type.aptitudes || RJ.aptitudes?.[type.id];
-    const goodTypes = type.match.good.map((id)=>RJ.types.find((t)=>t.id===id)).filter(Boolean);
-    const learnTypes = type.match.learn.map((id)=>RJ.types.find((t)=>t.id===id)).filter(Boolean);
 
-    // SVGアバター生成（決定論）
-    const features = AvatarBuilder.build(st.answers, scores, type);
+    // ゲーム要素（決定論）
+    const stats = GameEngine.stats(scores);
+    const attr = GameEngine.attribute(scores);
+    const title = GameEngine.title(scores, attr);
+    const skills = GameEngine.skills(scores);
+    const rarity = GameEngine.rarity(scores, sim, conf);
+
+    // アバター（性別Body反映）
+    const features = AvatarBuilder.build(st.answers, scores, type, st.gender);
     const avatar = Avatar.generate(features);
-    RealScreens._last = { scores, type, conf, features, avatar, apt };
+    RealScreens._last = { scores, type, conf, features, avatar, apt, stats, attr, title, skills, rarity, report };
 
-    const sortedAxes = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id]);
     const jobsAvg = (scores.logic+scores.planning+scores.challenge)/3;
     const hobAvg = (scores.creativity+scores.curiosity+scores.flexibility)/3;
     const studyAvg = (scores.logic+scores.curiosity+scores.caution)/3;
-
-    const bar = (id)=>{
-      const s = scores[id];
-      return `<div class="rbar-row">
-        <span class="rbar-label">${esc(RJ.axes.find(a=>a.id===id).name)}</span>
-        <span class="rbar"><i data-w="${s}"></i></span>
-        <span class="rbar-val num">${s}</span></div>`;
-    };
     const stars = (n)=>'★★★★★☆☆☆☆☆'.slice(5-n,10-n);
+    const rarityStars = '★'.repeat(rarity.stars) + '☆'.repeat(5-rarity.stars);
+
+    // ステータス表（LV別枠 + 8ステータス）
+    const statRows = RJ.gameStats.stats.map((s)=>`
+      <div class="gs-row" data-reveal>
+        <span class="gs-name">${s.id}</span>
+        <span class="gs-bar"><i data-w="${stats[s.id]}"></i></span>
+        <span class="gs-val num">${stats[s.id]}</span>
+      </div>`).join('');
 
     UI.inSession = false; UI.stopTicker(); Clock.pause();
-    $('hud').hidden = true; UI.aurora(type.proto.creativity>70?286:200);
+    $('hud').hidden = true;
+    document.documentElement.style.setProperty('--attr-color', attr.color);
+    document.documentElement.style.setProperty('--rarity-color', rarity.color);
+    document.documentElement.style.setProperty('--rarity-glow', rarity.glow);
 
     $('screen').innerHTML = `
-      <div class="screen real-result">
-        <div class="rr-report card glass${rare?' rare':''}">
-          <div class="rr-head">
-            <div class="rr-kicker">AI解析レポート</div>
-            ${rare?'<div class="rr-rare">稀な明瞭さ</div>':''}
-            <div class="rr-avatar">${avatar.svg}</div>
-            <div class="rr-type">${esc(type.icon)} ${esc(type.name)}</div>
-            <div class="rr-summary">${esc(type.summary)}</div>
-            <div class="rr-conf">AI Confidence <b class="num">${conf}</b>%</div>
+      <div class="screen game-result rarity-${rarity.id}${rare?' rare':''}">
+        <div class="gr-banner" data-reveal>RESULT</div>
+        <div class="gr-rarity" data-reveal><span class="gr-stars">${rarityStars}</span><span class="gr-rarity-name">${rarity.name}</span></div>
+
+        <div class="gr-card card glass" data-reveal>
+          <div class="gr-magic" aria-hidden="true"></div>
+          <div class="gr-avatar">${avatar.svg}</div>
+          <div class="gr-type">${esc(type.icon)} ${esc(type.name)}</div>
+          <div class="gr-title-line">${esc(title)}</div>
+          <div class="gr-meta">
+            <span class="gr-attr" style="--c:${attr.color}">${attr.icon} ${esc(attr.name)}属性</span>
+            <span class="gr-lv">Lv.<b class="num">${stats.LV}</b></span>
           </div>
         </div>
 
-        <div class="rr-section card glass">
-          <h3 class="rr-h">特徴量プロファイル</h3>
+        <div class="gr-section card glass" data-reveal>
+          <h3 class="gr-h">ステータス</h3>
+          <div class="gs-list">${statRows}</div>
+        </div>
+
+        <div class="gr-section card glass" data-reveal>
+          <h3 class="gr-h">スキル</h3>
+          <div class="gr-skills">${skills.map((s)=>`<span class="gr-skill">◈ ${esc(s)}</span>`).join('')}</div>
+        </div>
+
+        <div class="gr-section card glass" data-reveal>
+          <h3 class="gr-h">特性プロファイル</h3>
           <div class="rr-radar-wrap">${RealScreens.radarSVG(scores)}</div>
-          <div class="rbars">${RJ.axes.map(a=>bar(a.id)).join('')}</div>
         </div>
 
-        <div class="rr-section card glass">
-          <h3 class="rr-h">AIコメント</h3>
-          <ul class="rr-comments">
-            ${sortedAxes.slice(0,3).concat(sortedAxes.slice(-1)).map(a=>
-              `<li><b>${esc(a.name)}</b>：${esc(RealEngine.comment(a.id,scores[a.id],rng2))}</li>`).join('')}
-          </ul>
-        </div>
-
-        <div class="rr-section card glass">
-          <h3 class="rr-h">総合分析</h3>
+        <div class="gr-section card glass" data-reveal>
+          <h3 class="gr-h">キャラクター解説</h3>
           <p class="rr-report-text">${esc(report)}</p>
+          <div class="rr-conf">AI Confidence <b class="num">${conf}</b>%</div>
         </div>
 
-        <div class="rr-section card glass">
-          <h3 class="rr-h">向いていること</h3>
+        <div class="gr-section card glass" data-reveal>
+          <h3 class="gr-h">向いていること</h3>
           <div class="rr-apt">
-            <div class="rr-apt-row"><span>向いている仕事</span><b>${stars(RealEngine.stars(jobsAvg))}</b></div>
+            <div class="rr-apt-row"><span>職業</span><b>${stars(RealEngine.stars(jobsAvg))}</b></div>
             <p class="rr-apt-list">${apt.jobs.map(esc).join(' · ')}</p>
-            <div class="rr-apt-row"><span>向いている趣味</span><b>${stars(RealEngine.stars(hobAvg))}</b></div>
+            <div class="rr-apt-row"><span>趣味</span><b>${stars(RealEngine.stars(hobAvg))}</b></div>
             <p class="rr-apt-list">${apt.hobbies.map(esc).join(' · ')}</p>
-            <div class="rr-apt-row"><span>向いている学習法</span><b>${stars(RealEngine.stars(studyAvg))}</b></div>
+            <div class="rr-apt-row"><span>学習法</span><b>${stars(RealEngine.stars(studyAvg))}</b></div>
             <p class="rr-apt-list">${apt.study.map(esc).join(' · ')}</p>
           </div>
-          <div class="rr-advice">
-            <p><b>ストレスとの付き合い方</b><br>${esc(apt.stress)}</p>
-            <p><b>伸びる環境</b><br>${esc(apt.grow)}</p>
-            <p><b>苦手になりやすい状況</b><br>${esc(apt.weak)}</p>
-          </div>
         </div>
 
-        <div class="rr-section card glass">
-          <h3 class="rr-h">相性</h3>
-          <div class="rr-match">
-            <div><span class="rr-match-label">良い相性</span>
-              ${goodTypes.map(t=>`<span class="chip">${esc(t.icon)} ${esc(t.name)}</span>`).join(' ')}</div>
-            <div><span class="rr-match-label">学べる相手</span>
-              ${learnTypes.map(t=>`<span class="chip">${esc(t.icon)} ${esc(t.name)}</span>`).join(' ')}</div>
-          </div>
-        </div>
+        <p class="rr-note" data-reveal>${esc(RJ.report.note)}</p>
 
-        <p class="rr-note">${esc(RJ.report.note)}</p>
-
-        <div class="rr-actions">
+        <div class="gr-actions" data-reveal>
           <button id="rr-share" class="btn btn-primary" type="button">結果を画像でシェア</button>
           <button id="rr-again" class="btn btn-secondary" type="button">もう一度</button>
-          <button id="rr-joke" class="btn btn-ghost" type="button">ジョーク診断はこちら</button>
+          <button id="rr-joke" class="btn btn-ghost" type="button">ジョーク診断へ</button>
         </div>
         <div class="ad-slot" data-slot="share"></div>
-      </div>`;
+      </div>
+      <button id="gr-skip" class="gr-skip" type="button">▶ スキップ</button>`;
 
-    // バー＆レーダーのアニメ発火
-    requestAnimationFrame(()=>{
-      document.querySelectorAll('.rbar i').forEach((i)=>{ i.style.width = i.dataset.w+'%'; });
+    $('rr-share').addEventListener('click', ()=>RealScreens.share());
+    $('rr-again').addEventListener('click', ()=>RealScreens.gender());
+    $('rr-joke').addEventListener('click', ()=>RealScreens.toJoke());
+
+    // 順次表示演出（スキップ可）
+    RealScreens.revealSequence(()=>{
+      document.querySelectorAll('.gs-bar i').forEach((i)=>{ i.style.width = i.dataset.w+'%'; });
       const poly = document.querySelector('.radar-data');
       if (poly){ poly.style.transform='scale(1)'; poly.style.opacity='1'; }
     });
-
-    $('rr-share').addEventListener('click', ()=>RealScreens.share());
-    $('rr-again').addEventListener('click', ()=>RealScreens.begin());
-    $('rr-joke').addEventListener('click', ()=>RealScreens.toJoke());
   },
 
-  /** 10軸レーダーチャート（依存なしSVG） */
+  /** data-reveal 要素を順に出す。タップ/スキップ/reduced-motionで即完了 */
+  revealSequence(onBarsReady) {
+    const els = [...document.querySelectorAll('[data-reveal]')];
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let done = false;
+    const finishAll = () => {
+      if (done) return; done = true;
+      els.forEach((e)=>e.classList.add('shown'));
+      onBarsReady && onBarsReady();
+      const sk = $('gr-skip'); if (sk) sk.style.display='none';
+    };
+    $('gr-skip')?.addEventListener('click', finishAll);
+    document.querySelector('.game-result')?.addEventListener('click', (e)=>{
+      if (!done && !e.target.closest('button')) finishAll();
+    });
+    if (reduce) { finishAll(); return; }
+    let idx = 0;
+    const step = () => {
+      if (done) return;
+      if (idx >= els.length) { finishAll(); return; }
+      els[idx].classList.add('shown');
+      if (els[idx].querySelector('.gs-bar') || els[idx].classList.contains('gr-section')) onBarsReady && onBarsReady();
+      idx++;
+      setTimeout(step, 240);
+    };
+    step();
+  },
+
   radarSVG(scores) {
     const N = RJ.axes.length, cx = 130, cy = 130, R = 96;
-    const pt = (i, r) => {
-      const ang = -Math.PI/2 + (i / N) * Math.PI * 2;
-      return [cx + Math.cos(ang)*r, cy + Math.sin(ang)*r];
-    };
-    const grid = [0.25,0.5,0.75,1].map((g)=>{
-      const p = RJ.axes.map((_,i)=>pt(i, R*g).map(n=>n.toFixed(1)).join(',')).join(' ');
-      return `<polygon points="${p}" fill="none" stroke="var(--line)" stroke-width="1"/>`;
-    }).join('');
+    const pt = (i, r) => { const ang = -Math.PI/2 + (i / N) * Math.PI * 2; return [cx + Math.cos(ang)*r, cy + Math.sin(ang)*r]; };
+    const grid = [0.25,0.5,0.75,1].map((g)=>{ const p = RJ.axes.map((_,i)=>pt(i, R*g).map(n=>n.toFixed(1)).join(',')).join(' '); return `<polygon points="${p}" fill="none" stroke="var(--line)" stroke-width="1"/>`; }).join('');
     const spokes = RJ.axes.map((_,i)=>{ const [x,y]=pt(i,R); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`; }).join('');
     const dataPts = RJ.axes.map((a,i)=>pt(i, R*(scores[a.id]/100)).map(n=>n.toFixed(1)).join(',')).join(' ');
     const labels = RJ.axes.map((a,i)=>{ const [x,y]=pt(i,R+16); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" class="radar-label" text-anchor="middle" dominant-baseline="middle">${esc(a.name)}</text>`; }).join('');
@@ -2100,22 +2228,17 @@ const RealScreens = {
       ${labels}</svg>`;
   },
 
-  /** 本物版のURL（?mode=real 固定・ジョーク版と独立） */
-  realUrl() {
-    return location.origin + location.pathname + '?mode=real';
-  },
-  toJoke() {
-    try { history.replaceState(null, '', location.pathname); } catch {}
-    Store.reset();
-    Screens.home();
-  },
+  /** 単一URL（v6：mode別URL廃止） */
+  realUrl() { return location.origin + location.pathname; },
+  toJoke() { Store.reset(); Screens.home(); },
 
   async share() {
     const L = RealScreens._last;
     if (!L) return;
     const url = RealScreens.realUrl();
-    const topAxis = [...RJ.axes].sort((a,b)=>L.scores[b.id]-L.scores[a.id])[0].name;
-    const text = `AI性格診断(Real)の結果は「${L.type.name}」でした。\n最も高い特性は${topAxis}。AI Confidence ${L.conf}%。\nあなたの職業は？`;
+    const lv = L.stats ? L.stats.LV : '';
+    const rar = L.rarity ? `【${L.rarity.name}】` : '';
+    const text = `${rar}私の診断結果は「${L.type.name}」でした。\nLv.${lv}／${L.attr?L.attr.name+'属性':''}／${L.title||''}\nあなたは何タイプ？`;
     UI.toast('画像を生成しています…');
     try {
       const blob = await RealCard.render(L);
@@ -2147,59 +2270,80 @@ const RealCard = {
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
-    const C = L.features.typeColor;
+    const C = L.rarity ? L.rarity.color : L.features.typeColor;
+    const attrC = L.attr ? L.attr.color : L.features.typeColor;
     const F = '"Hiragino Sans","Noto Sans JP",sans-serif';
 
     ctx.fillStyle = '#0B0E1A'; ctx.fillRect(0, 0, W, H);
-    const g = ctx.createRadialGradient(W/2, 420, 0, W/2, 420, 720);
-    g.addColorStop(0, RealCard._hexA(C, 0.28)); g.addColorStop(1, 'rgba(0,0,0,0)');
+    const g = ctx.createRadialGradient(W/2, 460, 0, W/2, 460, 760);
+    g.addColorStop(0, RealCard._hexA(attrC, 0.3)); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    RealCard._round(ctx, 60, 60, W-120, H-120, 44);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
-    ctx.strokeStyle = RealCard._hexA(C, 0.7); ctx.lineWidth = 4; ctx.stroke();
+    // レア枠（外周を2重に）
+    RealCard._round(ctx, 48, 48, W-96, H-96, 44);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+    ctx.strokeStyle = RealCard._hexA(C, 0.85); ctx.lineWidth = 6; ctx.stroke();
+    RealCard._round(ctx, 62, 62, W-124, H-124, 36);
+    ctx.strokeStyle = RealCard._hexA(C, 0.4); ctx.lineWidth = 2; ctx.stroke();
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#9AA3BF'; ctx.font = `600 34px ${F}`;
-    ctx.fillText('AI 性格診断  Real', W/2, 150);
-    ctx.fillStyle = '#EDEFF7'; ctx.font = `800 68px ${F}`;
-    ctx.fillText(`${L.type.icon} ${L.type.name}`, W/2, 232);
-    ctx.fillStyle = C; ctx.font = `500 30px ${F}`;
-    RealCard._wrap(ctx, L.type.summary, W/2, 284, W-220, 40);
+    // RESULT バナー＋レア星
+    ctx.fillStyle = C; ctx.font = `800 40px ${F}`;
+    ctx.fillText('R E S U L T', W/2, 150);
+    if (L.rarity) {
+      ctx.font = `700 44px ${F}`;
+      ctx.fillText('★'.repeat(L.rarity.stars) + '☆'.repeat(5-L.rarity.stars), W/2, 210);
+      ctx.fillStyle = '#9AA3BF'; ctx.font = `600 24px ${F}`;
+      ctx.fillText(L.rarity.name, W/2, 246);
+    }
 
+    // タイプ名
+    ctx.fillStyle = '#EDEFF7'; ctx.font = `800 62px ${F}`;
+    ctx.fillText(`${L.type.icon} ${L.type.name}`, W/2, 322);
+    if (L.title) { ctx.fillStyle = attrC; ctx.font = `600 30px ${F}`; ctx.fillText(L.title, W/2, 368); }
+
+    // アバター
     const av = await SVGGenerator.toPNG(L.avatar.svg, 512);
     const avImg = await RealCard._img(av);
-    const AVSZ = 460, ax = W/2 - AVSZ/2, ay = 330;
-    RealCard._round(ctx, ax-8, ay-8, AVSZ+16, AVSZ+16, 32);
+    const AVSZ = 420, ax = W/2 - AVSZ/2, ay = 400;
+    RealCard._round(ctx, ax-8, ay-8, AVSZ+16, AVSZ+16, 30);
     ctx.strokeStyle = RealCard._hexA(C, 0.6); ctx.lineWidth = 3; ctx.stroke();
     ctx.drawImage(avImg, ax, ay, AVSZ, AVSZ);
 
-    const top5 = [...RJ.axes].sort((a,b)=>L.scores[b.id]-L.scores[a.id]).slice(0,5);
-    let by = 860;
-    ctx.textAlign = 'left';
-    for (const a of top5) {
-      const s = L.scores[a.id];
-      ctx.fillStyle = '#9AA3BF'; ctx.font = `500 28px ${F}`;
-      ctx.fillText(a.name, 130, by+22);
-      const bx = 340, bw = 500, bh = 20;
-      RealCard._round(ctx, bx, by+4, bw, bh, 10); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
-      RealCard._round(ctx, bx, by+4, bw*(s/100), bh, 10);
-      const grad = ctx.createLinearGradient(bx, 0, bx+bw, 0);
-      grad.addColorStop(0, C); grad.addColorStop(1, '#4FD8C8'); ctx.fillStyle = grad; ctx.fill();
-      ctx.fillStyle = '#EDEFF7'; ctx.font = `700 28px ${F}`; ctx.textAlign = 'right';
-      ctx.fillText(String(s), 900, by+24); ctx.textAlign = 'left';
-      by += 46;
+    // 属性＋LV
+    if (L.attr && L.stats) {
+      ctx.font = `700 30px ${F}`; ctx.fillStyle = attrC; ctx.textAlign = 'right';
+      ctx.fillText(`${L.attr.icon} ${L.attr.name}属性`, W/2 - 20, 872);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#EDEFF7';
+      ctx.fillText(`Lv.${L.stats.LV}`, W/2 + 20, 872);
+      ctx.textAlign = 'center';
     }
 
-    by += 14;
-    ctx.fillStyle = '#EDEFF7'; ctx.font = `500 27px ${F}`; ctx.textAlign = 'center';
-    by = RealCard._wrap(ctx, L.apt ? `向いている職業：${L.apt.jobs.slice(0,3).join('・')}` : '', W/2, by+10, W-220, 38);
+    // 主要ステータス4つ（STR/INT/AGI/CHA）バー
+    const keys = ['STR','INT','AGI','CHA','VIT','LUK'];
+    let by = 916;
+    ctx.textAlign = 'left';
+    for (const k of keys) {
+      if (L.stats[k] == null) continue;
+      const s = L.stats[k];
+      ctx.fillStyle = attrC; ctx.font = `700 26px ${F}`;
+      ctx.fillText(k, 150, by+20);
+      const bx = 250, bw = 560, bh = 18;
+      RealCard._round(ctx, bx, by+2, bw, bh, 9); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
+      RealCard._round(ctx, bx, by+2, bw*(s/100), bh, 9);
+      const grad = ctx.createLinearGradient(bx, 0, bx+bw, 0);
+      grad.addColorStop(0, attrC); grad.addColorStop(1, '#4FD8C8'); ctx.fillStyle = grad; ctx.fill();
+      ctx.fillStyle = '#EDEFF7'; ctx.font = `700 26px ${F}`; ctx.textAlign = 'right';
+      ctx.fillText(String(s), 900, by+21); ctx.textAlign = 'left';
+      by += 40;
+    }
 
-    ctx.fillStyle = C; ctx.font = `700 40px ${F}`;
-    ctx.fillText(`AI Confidence ${L.conf}%`, W/2, by+30);
-
-    ctx.fillStyle = '#9AA3BF'; ctx.font = `500 26px ${F}`;
-    ctx.fillText(RealScreens.realUrl().replace(/^https?:\/\//, ''), W/2, H-96);
+    // 職業＋URL
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#EDEFF7'; ctx.font = `500 25px ${F}`;
+    RealCard._wrap(ctx, L.apt ? `向いている職業：${L.apt.jobs.slice(0,3).join('・')}` : '', W/2, by+30, W-240, 34);
+    ctx.fillStyle = '#9AA3BF'; ctx.font = `500 24px ${F}`;
+    ctx.fillText(RealScreens.realUrl().replace(/^https?:\/\//, ''), W/2, H-88);
 
     return new Promise((res)=>cv.toBlob((b)=>res(b), 'image/png'));
   },
