@@ -45,367 +45,1635 @@
  ],
  "types": [
   {
-   "id": "architect",
-   "name": "分析設計型",
-   "icon": "◈",
+   "id": "hero",
+   "name": "勇者",
+   "icon": "🗡",
    "proto": {
-    "logic": 90,
+    "logic": 62,
+    "caution": 45,
+    "challenge": 95,
+    "empathy": 60,
+    "flexibility": 65,
+    "creativity": 60,
+    "cooperation": 65,
+    "planning": 55,
+    "curiosity": 70,
+    "stress": 88
+   },
+   "summary": "困難に真っ先に飛び込む、王道の英雄。",
+   "group": "human",
+   "match": {
+    "good": [
+     "lizardman",
+     "spellblade"
+    ],
+    "learn": [
+     "golem",
+     "sage"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "リーダー",
+     "起業家",
+     "消防・救急",
+     "プロジェクト推進"
+    ],
+    "hobbies": [
+     "格闘技",
+     "登山",
+     "チームスポーツ",
+     "冒険旅行"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "sage",
+   "name": "賢者",
+   "icon": "📖",
+   "proto": {
+    "logic": 95,
     "caution": 80,
     "challenge": 45,
-    "empathy": 40,
-    "flexibility": 45,
-    "creativity": 60,
-    "cooperation": 45,
-    "planning": 88,
-    "curiosity": 65,
-    "stress": 65
-   },
-   "summary": "論理と計画で全体を設計する、静かな戦略家。",
-   "match": {
-    "good": [
-     "supporter",
-     "harmonizer"
-    ],
-    "learn": [
-     "pioneer",
-     "creator"
-    ]
-   }
-  },
-  {
-   "id": "logician",
-   "name": "論理探究型",
-   "icon": "△",
-   "proto": {
-    "logic": 92,
-    "caution": 60,
-    "challenge": 55,
-    "empathy": 35,
-    "flexibility": 55,
+    "empathy": 50,
+    "flexibility": 50,
     "creativity": 65,
-    "cooperation": 40,
-    "planning": 60,
-    "curiosity": 85,
+    "cooperation": 50,
+    "planning": 80,
+    "curiosity": 88,
     "stress": 62
    },
-   "summary": "筋の通った答えを、とことん突き詰める探究者。",
+   "summary": "知の高みから世界を読み解く老練の賢者。",
+   "group": "human",
    "match": {
     "good": [
-     "observer",
-     "explorer"
+     "alchemist",
+     "astrologer"
     ],
     "learn": [
-     "communicator",
-     "supporter"
+     "orc",
+     "fairy"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "研究者",
+     "教授",
+     "戦略家",
+     "コンサル"
+    ],
+    "hobbies": [
+     "読書",
+     "囲碁・将棋",
+     "歴史探訪",
+     "哲学"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
    }
   },
   {
-   "id": "prudent",
-   "name": "慎重判断型",
-   "icon": "▽",
+   "id": "mage",
+   "name": "魔法使い",
+   "icon": "🔮",
+   "proto": {
+    "logic": 72,
+    "caution": 50,
+    "challenge": 60,
+    "empathy": 50,
+    "flexibility": 75,
+    "creativity": 92,
+    "cooperation": 45,
+    "planning": 50,
+    "curiosity": 85,
+    "stress": 58
+   },
+   "summary": "理と幻想を操る、探究心あふれる術者。",
+   "group": "human",
+   "match": {
+    "good": [
+     "summoner",
+     "necromancer"
+    ],
+    "learn": [
+     "golem",
+     "priest"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "エンジニア",
+     "デザイナー",
+     "研究開発",
+     "クリエイター"
+    ],
+    "hobbies": [
+     "プログラミング",
+     "science実験",
+     "創作",
+     "ゲーム制作"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "spellblade",
+   "name": "魔剣士",
+   "icon": "⚔",
    "proto": {
     "logic": 70,
-    "caution": 92,
-    "challenge": 30,
-    "empathy": 55,
-    "flexibility": 40,
-    "creativity": 45,
-    "cooperation": 60,
-    "planning": 85,
-    "curiosity": 50,
-    "stress": 55
-   },
-   "summary": "石橋を叩き、確かな一歩を選ぶ堅実な判断者。",
-   "match": {
-    "good": [
-     "harmonizer",
-     "supporter"
-    ],
-    "learn": [
-     "executor",
-     "pioneer"
-    ]
-   }
-  },
-  {
-   "id": "pioneer",
-   "name": "開拓挑戦型",
-   "icon": "▲",
-   "proto": {
-    "logic": 60,
-    "caution": 30,
-    "challenge": 92,
+    "caution": 45,
+    "challenge": 85,
     "empathy": 45,
     "flexibility": 70,
     "creativity": 70,
-    "cooperation": 50,
-    "planning": 50,
-    "curiosity": 82,
-    "stress": 78
+    "cooperation": 45,
+    "planning": 55,
+    "curiosity": 72,
+    "stress": 80
    },
-   "summary": "未踏の道にこそ火がつく、フロンティア気質。",
+   "summary": "剣と魔法を併せ持つ二刀流の戦士。",
+   "group": "human",
    "match": {
     "good": [
-     "executor",
-     "creator"
+     "thief",
+     "ninja"
     ],
     "learn": [
-     "prudent",
-     "harmonizer"
+     "priest",
+     "golem"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "エンジニア兼PM",
+     "起業家",
+     "選手兼指導者",
+     "二刀流の専門職"
+    ],
+    "hobbies": [
+     "格闘＋創作",
+     "eスポーツ",
+     "楽器",
+     "武術"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
    }
   },
   {
-   "id": "executor",
-   "name": "即断実行型",
-   "icon": "◆",
+   "id": "paladin",
+   "name": "パラディン",
+   "icon": "🛡",
    "proto": {
-    "logic": 65,
-    "caution": 30,
+    "logic": 60,
+    "caution": 70,
+    "challenge": 70,
+    "empathy": 80,
+    "flexibility": 50,
+    "creativity": 45,
+    "cooperation": 88,
+    "planning": 70,
+    "curiosity": 50,
+    "stress": 78
+   },
+   "summary": "信念と守りで仲間を支える聖騎士。",
+   "group": "human",
+   "match": {
+    "good": [
+     "knight",
+     "angel"
+    ],
+    "learn": [
+     "necromancer",
+     "demon"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "管理職",
+     "教育者",
+     "医療",
+     "公務"
+    ],
+    "hobbies": [
+     "ボランティア",
+     "チーム競技",
+     "合唱",
+     "地域活動"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "assassin",
+   "name": "アサシン",
+   "icon": "🗡",
+   "proto": {
+    "logic": 72,
+    "caution": 40,
     "challenge": 80,
-    "empathy": 45,
-    "flexibility": 60,
-    "creativity": 50,
-    "cooperation": 55,
-    "planning": 55,
+    "empathy": 30,
+    "flexibility": 72,
+    "creativity": 60,
+    "cooperation": 35,
+    "planning": 60,
     "curiosity": 60,
     "stress": 82
    },
-   "summary": "考えるより動く。決断の速さが最大の武器。",
+   "summary": "影から一撃を狙う、冷徹な暗殺者。",
+   "group": "human",
    "match": {
     "good": [
-     "pioneer",
-     "communicator"
+     "ninja",
+     "spellblade"
     ],
     "learn": [
-     "architect",
-     "observer"
+     "priest",
+     "angel"
     ]
-   }
-  },
-  {
-   "id": "supporter",
-   "name": "共感支援型",
-   "icon": "❍",
-   "proto": {
-    "logic": 45,
-    "caution": 60,
-    "challenge": 40,
-    "empathy": 92,
-    "flexibility": 65,
-    "creativity": 55,
-    "cooperation": 85,
-    "planning": 60,
-    "curiosity": 55,
-    "stress": 55
    },
-   "summary": "人の機微を察し、そっと支える聞き上手。",
-   "match": {
-    "good": [
-     "harmonizer",
-     "communicator"
+   "aptitudes": {
+    "jobs": [
+     "専門技術職",
+     "トレーダー",
+     "アナリスト",
+     "個人事業"
     ],
-    "learn": [
-     "logician",
-     "architect"
-    ]
+    "hobbies": [
+     "射撃・ダーツ",
+     "一人旅",
+     "戦略ゲーム",
+     "筋トレ"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
    }
   },
   {
-   "id": "harmonizer",
-   "name": "調和協調型",
-   "icon": "◎",
+   "id": "hunter",
+   "name": "狩人",
+   "icon": "🏹",
+   "proto": {
+    "logic": 70,
+    "caution": 60,
+    "challenge": 72,
+    "empathy": 45,
+    "flexibility": 68,
+    "creativity": 50,
+    "cooperation": 45,
+    "planning": 68,
+    "curiosity": 70,
+    "stress": 72
+   },
+   "summary": "獲物を読み切る、静かな追跡者。",
+   "group": "human",
+   "match": {
+    "good": [
+     "ninja",
+     "swordmaster"
+    ],
+    "learn": [
+     "priest",
+     "angel"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "リサーチャー",
+     "フィールドワーク",
+     "品質管理",
+     "狙撃系職"
+    ],
+    "hobbies": [
+     "釣り",
+     "アーチェリー",
+     "キャンプ",
+     "写真"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "merchant",
+   "name": "商人",
+   "icon": "💰",
+   "proto": {
+    "logic": 68,
+    "caution": 62,
+    "challenge": 55,
+    "empathy": 62,
+    "flexibility": 70,
+    "creativity": 55,
+    "cooperation": 72,
+    "planning": 68,
+    "curiosity": 62,
+    "stress": 64
+   },
+   "summary": "駆け引きで世を渡る、機を見るに敏な商人。",
+   "group": "human",
+   "match": {
+    "good": [
+     "elf",
+     "beastmaster"
+    ],
+    "learn": [
+     "orc",
+     "golem"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "営業",
+     "経営",
+     "マーケター",
+     "バイヤー"
+    ],
+    "hobbies": [
+     "投資",
+     "交渉ゲーム",
+     "食べ歩き",
+     "旅行"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "alchemist",
+   "name": "錬金術師",
+   "icon": "⚗",
+   "proto": {
+    "logic": 88,
+    "caution": 72,
+    "challenge": 50,
+    "empathy": 45,
+    "flexibility": 60,
+    "creativity": 80,
+    "cooperation": 45,
+    "planning": 72,
+    "curiosity": 88,
+    "stress": 58
+   },
+   "summary": "物質の理を組み替える、探究の実験者。",
+   "group": "human",
+   "match": {
+    "good": [
+     "astrologer",
+     "sage"
+    ],
+    "learn": [
+     "orc",
+     "paladin"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "研究開発",
+     "データ分析",
+     "品質化学",
+     "発明家"
+    ],
+    "hobbies": [
+     "実験",
+     "DIY",
+     "料理研究",
+     "収集"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "bard",
+   "name": "吟遊詩人",
+   "icon": "🎵",
    "proto": {
     "logic": 55,
-    "caution": 65,
-    "challenge": 40,
+    "caution": 45,
+    "challenge": 60,
     "empathy": 78,
     "flexibility": 75,
-    "creativity": 50,
-    "cooperation": 92,
+    "creativity": 75,
+    "cooperation": 72,
+    "planning": 45,
+    "curiosity": 72,
+    "stress": 66
+   },
+   "summary": "言葉と歌で人の心を動かす旅の詩人。",
+   "group": "human",
+   "match": {
+    "good": [
+     "fairy",
+     "beastmaster"
+    ],
+    "learn": [
+     "golem",
+     "sage"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "広報",
+     "タレント",
+     "講師",
+     "クリエイター"
+    ],
+    "hobbies": [
+     "音楽",
+     "朗読・演劇",
+     "SNS発信",
+     "作詞"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "knight",
+   "name": "騎士",
+   "icon": "🐴",
+   "proto": {
+    "logic": 60,
+    "caution": 68,
+    "challenge": 72,
+    "empathy": 60,
+    "flexibility": 45,
+    "creativity": 45,
+    "cooperation": 72,
+    "planning": 75,
+    "curiosity": 50,
+    "stress": 80
+   },
+   "summary": "規律と忠義に生きる、正統派の騎士。",
+   "group": "human",
+   "match": {
+    "good": [
+     "dwarf",
+     "paladin"
+    ],
+    "learn": [
+     "mage",
+     "necromancer"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "管理職",
+     "公務員",
+     "警備・防衛",
+     "品質保証"
+    ],
+    "hobbies": [
+     "武道",
+     "規律スポーツ",
+     "歴史",
+     "整備・工作"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "priest",
+   "name": "僧侶",
+   "icon": "✚",
+   "proto": {
+    "logic": 58,
+    "caution": 68,
+    "challenge": 40,
+    "empathy": 90,
+    "flexibility": 55,
+    "creativity": 45,
+    "cooperation": 85,
     "planning": 65,
     "curiosity": 55,
     "stress": 60
    },
-   "summary": "場の空気を整え、全体を丸くまとめる調停役。",
+   "summary": "癒しと祈りで人を支える聖職者。",
+   "group": "human",
    "match": {
     "good": [
-     "supporter",
-     "prudent"
+     "angel",
+     "paladin"
     ],
     "learn": [
-     "pioneer",
-     "executor"
+     "demon",
+     "assassin"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "カウンセラー",
+     "看護・介護",
+     "教育",
+     "人事"
+    ],
+    "hobbies": [
+     "ボランティア",
+     "ヨガ",
+     "写経・瞑想",
+     "動物と過ごす"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
    }
   },
   {
-   "id": "observer",
-   "name": "観察洞察型",
-   "icon": "◇",
+   "id": "thief",
+   "name": "盗賊",
+   "icon": "🗝",
+   "proto": {
+    "logic": 60,
+    "caution": 38,
+    "challenge": 78,
+    "empathy": 45,
+    "flexibility": 82,
+    "creativity": 62,
+    "cooperation": 45,
+    "planning": 50,
+    "curiosity": 72,
+    "stress": 74
+   },
+   "summary": "素早さと機転で切り抜ける自由な盗賊。",
+   "group": "human",
+   "match": {
+    "good": [
+     "goblin",
+     "spellblade"
+    ],
+    "learn": [
+     "golem",
+     "priest"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "フリーランス",
+     "トレーダー",
+     "潜入取材",
+     "即応系職"
+    ],
+    "hobbies": [
+     "パルクール",
+     "脱出ゲーム",
+     "手品",
+     "一人旅"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "summoner",
+   "name": "召喚士",
+   "icon": "🌀",
    "proto": {
     "logic": 78,
-    "caution": 80,
-    "challenge": 35,
-    "empathy": 60,
-    "flexibility": 50,
-    "creativity": 55,
-    "cooperation": 50,
-    "planning": 70,
-    "curiosity": 72,
-    "stress": 58
+    "caution": 55,
+    "challenge": 60,
+    "empathy": 55,
+    "flexibility": 65,
+    "creativity": 82,
+    "cooperation": 55,
+    "planning": 58,
+    "curiosity": 85,
+    "stress": 60
    },
-   "summary": "一歩引いて本質を見抜く、静かな観察者。",
+   "summary": "異界の力を呼び出す神秘の召喚士。",
+   "group": "human",
    "match": {
     "good": [
-     "architect",
-     "logician"
+     "mage",
+     "astrologer"
     ],
     "learn": [
-     "executor",
-     "communicator"
+     "golem",
+     "orc"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "プロデューサー",
+     "PM",
+     "研究職",
+     "企画"
+    ],
+    "hobbies": [
+     "収集",
+     "TRPG",
+     "作曲",
+     "戦略ゲーム"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
    }
   },
   {
-   "id": "creator",
-   "name": "創造表現型",
-   "icon": "✦",
+   "id": "swordmaster",
+   "name": "剣聖",
+   "icon": "🀄",
+   "proto": {
+    "logic": 68,
+    "caution": 60,
+    "challenge": 88,
+    "empathy": 50,
+    "flexibility": 60,
+    "creativity": 50,
+    "cooperation": 50,
+    "planning": 70,
+    "curiosity": 55,
+    "stress": 86
+   },
+   "summary": "一振りに全てを込める達人の剣士。",
+   "group": "human",
+   "match": {
+    "good": [
+     "lizardman",
+     "dragon"
+    ],
+    "learn": [
+     "fairy",
+     "priest"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "スペシャリスト",
+     "職人",
+     "アスリート",
+     "指導者"
+    ],
+    "hobbies": [
+     "武術",
+     "弓道・剣道",
+     "精密作業",
+     "登山"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "ninja",
+   "name": "忍者",
+   "icon": "🥷",
+   "proto": {
+    "logic": 70,
+    "caution": 55,
+    "challenge": 80,
+    "empathy": 40,
+    "flexibility": 80,
+    "creativity": 58,
+    "cooperation": 45,
+    "planning": 62,
+    "curiosity": 65,
+    "stress": 82
+   },
+   "summary": "闇に紛れ任務を遂行する影の者。",
+   "group": "human",
+   "match": {
+    "good": [
+     "assassin",
+     "hunter"
+    ],
+    "learn": [
+     "priest",
+     "angel"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "専門職",
+     "セキュリティ",
+     "調査",
+     "即応系"
+    ],
+    "hobbies": [
+     "忍術体験",
+     "筋トレ",
+     "隠密系ゲーム",
+     "登山"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "astrologer",
+   "name": "占星術師",
+   "icon": "🔭",
+   "proto": {
+    "logic": 82,
+    "caution": 68,
+    "challenge": 45,
+    "empathy": 58,
+    "flexibility": 55,
+    "creativity": 72,
+    "cooperation": 52,
+    "planning": 60,
+    "curiosity": 90,
+    "stress": 58
+   },
+   "summary": "星々に運命を読む神秘の観測者。",
+   "group": "human",
+   "match": {
+    "good": [
+     "alchemist",
+     "summoner"
+    ],
+    "learn": [
+     "orc",
+     "golem"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "研究者",
+     "占い・鑑定",
+     "データ分析",
+     "編集"
+    ],
+    "hobbies": [
+     "天体観測",
+     "占星術",
+     "読書",
+     "収集"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "beastmaster",
+   "name": "獣使い",
+   "icon": "🐾",
    "proto": {
     "logic": 55,
-    "caution": 40,
-    "challenge": 65,
+    "caution": 55,
+    "challenge": 68,
+    "empathy": 72,
+    "flexibility": 70,
+    "creativity": 55,
+    "cooperation": 75,
+    "planning": 55,
+    "curiosity": 72,
+    "stress": 70
+   },
+   "summary": "獣と心を交わす野生の相棒。",
+   "group": "human",
+   "match": {
+    "good": [
+     "bard",
+     "merchant"
+    ],
+    "learn": [
+     "golem",
+     "necromancer"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "トレーナー",
+     "飼育・獣医",
+     "教育",
+     "チーム職"
+    ],
+    "hobbies": [
+     "ペット",
+     "乗馬",
+     "自然観察",
+     "キャンプ"
+    ],
+    "study": [
+     "体系立てて学ぶ",
+     "実践しながら身につける",
+     "人と教え合う"
+    ],
+    "stress": "目的を整理し、信頼できる仲間と共有すると落ち着きます。",
+    "grow": "裁量と挑戦のバランスが取れた環境で伸びます。",
+    "weak": "理不尽な制約や、意義を見失う状況が苦手です。"
+   }
+  },
+  {
+   "id": "dragon",
+   "name": "ドラゴン",
+   "icon": "🐉",
+   "proto": {
+    "logic": 72,
+    "caution": 55,
+    "challenge": 92,
+    "empathy": 40,
+    "flexibility": 55,
+    "creativity": 60,
+    "cooperation": 40,
+    "planning": 60,
+    "curiosity": 65,
+    "stress": 90
+   },
+   "summary": "天地を睥睨する、誇り高き最強種。",
+   "group": "dragon",
+   "match": {
+    "good": [
+     "swordmaster",
+     "spellblade"
+    ],
+    "learn": [
+     "priest",
+     "angel"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "経営者",
+     "第一人者",
+     "開拓職",
+     "トップ選手"
+    ],
+    "hobbies": [
+     "筋トレ",
+     "高難度挑戦",
+     "投資",
+     "収集（希少品）"
+    ],
+    "study": [
+     "核心から一気に理解する",
+     "力試しで体得する",
+     "独学で極める"
+    ],
+    "stress": "広い視野を取り戻す時間で回復します。",
+    "grow": "実力が正当に評価される、骨のある環境で伸びます。",
+    "weak": "格下扱いや、束縛の強い状況が苦手です。"
+   }
+  },
+  {
+   "id": "phoenix",
+   "name": "フェニックス",
+   "icon": "🔥",
+   "proto": {
+    "logic": 60,
+    "caution": 45,
+    "challenge": 80,
     "empathy": 60,
     "flexibility": 78,
-    "creativity": 92,
+    "creativity": 85,
     "cooperation": 55,
     "planning": 45,
     "curiosity": 80,
-    "stress": 62
+    "stress": 88
    },
-   "summary": "頭の中の世界を形にする、生まれながらの作り手。",
+   "summary": "何度でも蘇る、不屈の炎の化身。",
+   "group": "bird",
    "match": {
     "good": [
-     "ideator",
-     "pioneer"
+     "thief",
+     "spellblade"
     ],
     "learn": [
-     "prudent",
-     "architect"
+     "golem",
+     "priest"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "起業家",
+     "クリエイター",
+     "再建屋",
+     "挑戦職"
+    ],
+    "hobbies": [
+     "旅",
+     "創作",
+     "スポーツ",
+     "新体験収集"
+    ],
+    "study": [
+     "感覚で掴んでから理屈を補う",
+     "新しい刺激で学ぶ",
+     "失敗を糧に再挑戦する"
+    ],
+    "stress": "環境を変え、新しい風に触れると復活します。",
+    "grow": "変化と再挑戦が許される環境で伸びます。",
+    "weak": "停滞や、同じことの繰り返しが苦手です。"
    }
   },
   {
-   "id": "ideator",
-   "name": "発想拡散型",
-   "icon": "✧",
+   "id": "goblin",
+   "name": "ゴブリン",
+   "icon": "👺",
    "proto": {
-    "logic": 58,
+    "logic": 45,
     "caution": 35,
-    "challenge": 68,
-    "empathy": 55,
-    "flexibility": 88,
-    "creativity": 85,
-    "cooperation": 50,
-    "planning": 40,
-    "curiosity": 88,
+    "challenge": 65,
+    "empathy": 35,
+    "flexibility": 72,
+    "creativity": 55,
+    "cooperation": 45,
+    "planning": 38,
+    "curiosity": 68,
     "stress": 60
    },
-   "summary": "次々にアイデアが湧く、発想のスプリンター。",
+   "summary": "小さくとも抜け目ない、群れの策士。",
+   "group": "beast",
    "match": {
     "good": [
-     "creator",
-     "explorer"
+     "thief",
+     "phoenix"
     ],
     "learn": [
-     "architect",
-     "prudent"
+     "golem",
+     "priest"
     ]
-   }
-  },
-  {
-   "id": "explorer",
-   "name": "探究好奇型",
-   "icon": "❖",
-   "proto": {
-    "logic": 70,
-    "caution": 45,
-    "challenge": 65,
-    "empathy": 50,
-    "flexibility": 72,
-    "creativity": 70,
-    "cooperation": 48,
-    "planning": 50,
-    "curiosity": 95,
-    "stress": 66
    },
-   "summary": "知らないことに手が伸びる、好奇心の旅人。",
-   "match": {
-    "good": [
-     "logician",
-     "ideator"
+   "aptitudes": {
+    "jobs": [
+     "企画",
+     "マーケ",
+     "フリーランス",
+     "交渉役"
     ],
-    "learn": [
-     "harmonizer",
-     "supporter"
-    ]
+    "hobbies": [
+     "ボードゲーム",
+     "収集",
+     "DIY",
+     "雑学"
+    ],
+    "study": [
+     "手を動かして覚える",
+     "仲間と競い合って伸ばす",
+     "現場で叩き込む"
+    ],
+    "stress": "体を動かし、仲間とわいわい過ごすと発散できます。",
+    "grow": "仲間意識が強く、成果が目に見える環境で伸びます。",
+    "weak": "孤独な緻密作業や、抽象的すぎる話が苦手です。"
    }
   },
   {
-   "id": "communicator",
-   "name": "表現伝達型",
-   "icon": "◐",
+   "id": "orc",
+   "name": "オーク",
+   "icon": "🪓",
    "proto": {
-    "logic": 55,
-    "caution": 45,
-    "challenge": 62,
-    "empathy": 75,
-    "flexibility": 72,
-    "creativity": 68,
-    "cooperation": 72,
-    "planning": 50,
-    "curiosity": 68,
+    "logic": 45,
+    "caution": 30,
+    "challenge": 88,
+    "empathy": 40,
+    "flexibility": 50,
+    "creativity": 40,
+    "cooperation": 55,
+    "planning": 45,
+    "curiosity": 50,
+    "stress": 88
+   },
+   "summary": "圧倒的な膂力で押し通す剛の戦士。",
+   "group": "beast",
+   "match": {
+    "good": [
+     "hero",
+     "lizardman"
+    ],
+    "learn": [
+     "sage",
+     "alchemist"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "現場職",
+     "アスリート",
+     "営業",
+     "建設・製造"
+    ],
+    "hobbies": [
+     "筋トレ",
+     "格闘技",
+     "BBQ",
+     "チーム競技"
+    ],
+    "study": [
+     "手を動かして覚える",
+     "仲間と競い合って伸ばす",
+     "現場で叩き込む"
+    ],
+    "stress": "体を動かし、仲間とわいわい過ごすと発散できます。",
+    "grow": "仲間意識が強く、成果が目に見える環境で伸びます。",
+    "weak": "孤独な緻密作業や、抽象的すぎる話が苦手です。"
+   }
+  },
+  {
+   "id": "slime",
+   "name": "スライム",
+   "icon": "🫧",
+   "proto": {
+    "logic": 48,
+    "caution": 50,
+    "challenge": 45,
+    "empathy": 60,
+    "flexibility": 92,
+    "creativity": 55,
+    "cooperation": 58,
+    "planning": 45,
+    "curiosity": 60,
+    "stress": 72
+   },
+   "summary": "どんな形にも becoming する適応の申し子。",
+   "group": "slime",
+   "match": {
+    "good": [
+     "bard",
+     "beastmaster"
+    ],
+    "learn": [
+     "golem",
+     "sage"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "何でも屋",
+     "調整役",
+     "サポート",
+     "マルチ職"
+    ],
+    "hobbies": [
+     "多趣味",
+     "ゲーム",
+     "散歩",
+     "雑食的読書"
+    ],
+    "study": [
+     "柔軟に真似て吸収する",
+     "色々試して合うものを残す",
+     "流れに乗って学ぶ"
+    ],
+    "stress": "形にこだわらず、流れに身を任せると楽になります。",
+    "grow": "変化に富み、型にはまらない環境で伸びます。",
+    "weak": "厳格な型や、一つに固定される状況が苦手です。"
+   }
+  },
+  {
+   "id": "vampire",
+   "name": "吸血鬼",
+   "icon": "🦇",
+   "proto": {
+    "logic": 80,
+    "caution": 60,
+    "challenge": 65,
+    "empathy": 35,
+    "flexibility": 70,
+    "creativity": 72,
+    "cooperation": 40,
+    "planning": 60,
+    "curiosity": 72,
     "stress": 70
    },
-   "summary": "思いを言葉にのせて人を動かす、伝える人。",
+   "summary": "永い時を生きる、優雅で妖しい貴種。",
+   "group": "demon",
    "match": {
     "good": [
-     "supporter",
-     "executor"
+     "necromancer",
+     "demon"
     ],
     "learn": [
-     "observer",
-     "architect"
+     "priest",
+     "angel"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "専門職",
+     "研究",
+     "夜型クリエイター",
+     "鑑定"
+    ],
+    "hobbies": [
+     "読書",
+     "ワイン・美食",
+     "収集",
+     "夜の散歩"
+    ],
+    "study": [
+     "興味の核を深掘りする",
+     "独自の体系を築く",
+     "禁忌にこそ惹かれて学ぶ"
+    ],
+    "stress": "一人の世界に没入することで整えます。",
+    "grow": "自由と知的探究が両立する環境で伸びます。",
+    "weak": "同調圧力や、浅い付き合いの強要が苦手です。"
    }
   },
   {
-   "id": "balancer",
-   "name": "均衡調整型",
-   "icon": "○",
+   "id": "angel",
+   "name": "天使",
+   "icon": "😇",
    "proto": {
-    "logic": 65,
-    "caution": 62,
-    "challenge": 58,
-    "empathy": 62,
-    "flexibility": 65,
-    "creativity": 60,
-    "cooperation": 65,
+    "logic": 62,
+    "caution": 65,
+    "challenge": 50,
+    "empathy": 92,
+    "flexibility": 55,
+    "creativity": 55,
+    "cooperation": 88,
     "planning": 62,
-    "curiosity": 63,
-    "stress": 64
+    "curiosity": 55,
+    "stress": 66
    },
-   "summary": "どの力も偏らず、状況に合わせて姿を変える万能型。",
+   "summary": "慈愛をもって人を導く、天上の使い。",
+   "group": "holy",
    "match": {
     "good": [
-     "harmonizer",
-     "observer"
+     "priest",
+     "paladin"
     ],
     "learn": [
-     "pioneer",
-     "creator"
+     "demon",
+     "assassin"
     ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "医療・福祉",
+     "教育",
+     "カウンセラー",
+     "NPO"
+    ],
+    "hobbies": [
+     "ボランティア",
+     "合唱",
+     "ヨガ",
+     "ガーデニング"
+    ],
+    "study": [
+     "人と関わりながら学ぶ",
+     "感情と結びつけて覚える",
+     "誰かのために学ぶ"
+    ],
+    "stress": "穏やかな人との時間で回復します。",
+    "grow": "人の役に立てる実感のある環境で伸びます。",
+    "weak": "争いや冷たい空気、孤立が苦手です。"
+   }
+  },
+  {
+   "id": "demon",
+   "name": "悪魔",
+   "icon": "😈",
+   "proto": {
+    "logic": 72,
+    "caution": 40,
+    "challenge": 78,
+    "empathy": 30,
+    "flexibility": 72,
+    "creativity": 80,
+    "cooperation": 35,
+    "planning": 55,
+    "curiosity": 72,
+    "stress": 76
+   },
+   "summary": "欲望と創造を司る、蠱惑の異端者。",
+   "group": "demon",
+   "match": {
+    "good": [
+     "spellblade",
+     "assassin"
+    ],
+    "learn": [
+     "priest",
+     "angel"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "クリエイター",
+     "起業家",
+     "研究",
+     "企画"
+    ],
+    "hobbies": [
+     "創作",
+     "戦略ゲーム",
+     "収集",
+     "夜更かし探究"
+    ],
+    "study": [
+     "興味の核を深掘りする",
+     "独自の体系を築く",
+     "禁忌にこそ惹かれて学ぶ"
+    ],
+    "stress": "一人の世界に没入することで整えます。",
+    "grow": "自由と知的探究が両立する環境で伸びます。",
+    "weak": "同調圧力や、浅い付き合いの強要が苦手です。"
+   }
+  },
+  {
+   "id": "fairy",
+   "name": "妖精",
+   "icon": "🧚",
+   "proto": {
+    "logic": 50,
+    "caution": 45,
+    "challenge": 55,
+    "empathy": 80,
+    "flexibility": 82,
+    "creativity": 80,
+    "cooperation": 72,
+    "planning": 42,
+    "curiosity": 80,
+    "stress": 58
+   },
+   "summary": "気まぐれに舞う、自然の悪戯な精霊。",
+   "group": "holy",
+   "match": {
+    "good": [
+     "bard",
+     "beastmaster"
+    ],
+    "learn": [
+     "golem",
+     "orc"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "デザイナー",
+     "クリエイター",
+     "保育・教育",
+     "企画"
+    ],
+    "hobbies": [
+     "絵・工作",
+     "音楽",
+     "自然遊び",
+     "占い"
+    ],
+    "study": [
+     "人と関わりながら学ぶ",
+     "感情と結びつけて覚える",
+     "誰かのために学ぶ"
+    ],
+    "stress": "穏やかな人との時間で回復します。",
+    "grow": "人の役に立てる実感のある環境で伸びます。",
+    "weak": "争いや冷たい空気、孤立が苦手です。"
+   }
+  },
+  {
+   "id": "elf",
+   "name": "エルフ",
+   "icon": "🏹",
+   "proto": {
+    "logic": 72,
+    "caution": 62,
+    "challenge": 58,
+    "empathy": 68,
+    "flexibility": 60,
+    "creativity": 68,
+    "cooperation": 68,
+    "planning": 62,
+    "curiosity": 75,
+    "stress": 62
+   },
+   "summary": "森の理に通じる、優美で聡明な種族。",
+   "group": "holy",
+   "match": {
+    "good": [
+     "merchant",
+     "summoner"
+    ],
+    "learn": [
+     "golem",
+     "orc"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "研究",
+     "デザイン",
+     "翻訳・語学",
+     "相談職"
+    ],
+    "hobbies": [
+     "読書",
+     "弓道",
+     "自然観察",
+     "語学"
+    ],
+    "study": [
+     "人と関わりながら学ぶ",
+     "感情と結びつけて覚える",
+     "誰かのために学ぶ"
+    ],
+    "stress": "穏やかな人との時間で回復します。",
+    "grow": "人の役に立てる実感のある環境で伸びます。",
+    "weak": "争いや冷たい空気、孤立が苦手です。"
+   }
+  },
+  {
+   "id": "dwarf",
+   "name": "ドワーフ",
+   "icon": "🔨",
+   "proto": {
+    "logic": 62,
+    "caution": 72,
+    "challenge": 62,
+    "empathy": 55,
+    "flexibility": 40,
+    "creativity": 60,
+    "cooperation": 65,
+    "planning": 80,
+    "curiosity": 55,
+    "stress": 80
+   },
+   "summary": "鍛冶と大地を愛する、頑健な職人。",
+   "group": "beast",
+   "match": {
+    "good": [
+     "knight",
+     "paladin"
+    ],
+    "learn": [
+     "fairy",
+     "goblin"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "職人",
+     "製造",
+     "エンジニア",
+     "品質管理"
+    ],
+    "hobbies": [
+     "工作・DIY",
+     "鍛冶体験",
+     "収集",
+     "ものづくり"
+    ],
+    "study": [
+     "手を動かして覚える",
+     "仲間と競い合って伸ばす",
+     "現場で叩き込む"
+    ],
+    "stress": "体を動かし、仲間とわいわい過ごすと発散できます。",
+    "grow": "仲間意識が強く、成果が目に見える環境で伸びます。",
+    "weak": "孤独な緻密作業や、抽象的すぎる話が苦手です。"
+   }
+  },
+  {
+   "id": "lizardman",
+   "name": "リザードマン",
+   "icon": "🦎",
+   "proto": {
+    "logic": 55,
+    "caution": 50,
+    "challenge": 82,
+    "empathy": 40,
+    "flexibility": 68,
+    "creativity": 45,
+    "cooperation": 50,
+    "planning": 55,
+    "curiosity": 58,
+    "stress": 84
+   },
+   "summary": "本能と鱗を武器に生き抜く戦士種。",
+   "group": "dragon",
+   "match": {
+    "good": [
+     "ninja",
+     "swordmaster"
+    ],
+    "learn": [
+     "priest",
+     "sage"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "現場職",
+     "アスリート",
+     "サバイバル職",
+     "技術職"
+    ],
+    "hobbies": [
+     "アウトドア",
+     "格闘技",
+     "釣り",
+     "筋トレ"
+    ],
+    "study": [
+     "核心から一気に理解する",
+     "力試しで体得する",
+     "独学で極める"
+    ],
+    "stress": "広い視野を取り戻す時間で回復します。",
+    "grow": "実力が正当に評価される、骨のある環境で伸びます。",
+    "weak": "格下扱いや、束縛の強い状況が苦手です。"
+   }
+  },
+  {
+   "id": "golem",
+   "name": "ゴーレム",
+   "icon": "🗿",
+   "proto": {
+    "logic": 80,
+    "caution": 85,
+    "challenge": 50,
+    "empathy": 35,
+    "flexibility": 30,
+    "creativity": 40,
+    "cooperation": 55,
+    "planning": 88,
+    "curiosity": 45,
+    "stress": 90
+   },
+   "summary": "命じられた理を黙々と遂行する守護者。",
+   "group": "construct",
+   "match": {
+    "good": [
+     "dwarf",
+     "knight"
+    ],
+    "learn": [
+     "fairy",
+     "goblin"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "品質管理",
+     "保守・運用",
+     "経理",
+     "製造"
+    ],
+    "hobbies": [
+     "精密作業",
+     "収集",
+     "ルーティン運動",
+     "整理"
+    ],
+    "study": [
+     "反復で確実に固める",
+     "手順書どおり正確に",
+     "一つを極める"
+    ],
+    "stress": "決まった手順に沿うことで安定します。",
+    "grow": "正確さと継続が評価される環境で伸びます。",
+    "weak": "曖昧な指示や、頻繁な方針変更が苦手です。"
+   }
+  },
+  {
+   "id": "necromancer",
+   "name": "ネクロマンサー",
+   "icon": "💀",
+   "proto": {
+    "logic": 85,
+    "caution": 55,
+    "challenge": 60,
+    "empathy": 30,
+    "flexibility": 60,
+    "creativity": 82,
+    "cooperation": 35,
+    "planning": 62,
+    "curiosity": 85,
+    "stress": 64
+   },
+   "summary": "死の理を操る、禁忌の探究者。",
+   "group": "demon",
+   "match": {
+    "good": [
+     "vampire",
+     "alchemist"
+    ],
+    "learn": [
+     "priest",
+     "angel"
+    ]
+   },
+   "aptitudes": {
+    "jobs": [
+     "研究者",
+     "データ分析",
+     "専門技術",
+     "編集"
+    ],
+    "hobbies": [
+     "読書",
+     "戦略ゲーム",
+     "収集",
+     "考察系"
+    ],
+    "study": [
+     "興味の核を深掘りする",
+     "独自の体系を築く",
+     "禁忌にこそ惹かれて学ぶ"
+    ],
+    "stress": "一人の世界に没入することで整えます。",
+    "grow": "自由と知的探究が両立する環境で伸びます。",
+    "weak": "同調圧力や、浅い付き合いの強要が苦手です。"
    }
   }
  ],
@@ -1436,44 +2704,101 @@
  },
  "report": {
   "typeIntro": {
-   "architect": [
-    "あなたは物事を俯瞰し、論理と計画で全体を設計していくタイプです。"
+   "hero": [
+    "あなたは困難に真っ先に飛び込む、王道の勇者タイプです。"
    ],
-   "logician": [
-    "あなたは筋の通った答えを求め、対象をとことん掘り下げる探究者タイプです。"
+   "sage": [
+    "あなたは知の高みから物事を読み解く、賢者タイプです。"
    ],
-   "prudent": [
-    "あなたは慎重に情報を吟味し、確かな一歩を選ぶ堅実な判断者タイプです。"
+   "mage": [
+    "あなたは理と幻想を操る、探究心あふれる魔法使いタイプです。"
    ],
-   "pioneer": [
-    "あなたは未知の領域に飛び込むことに意欲を燃やす、開拓者タイプです。"
+   "spellblade": [
+    "あなたは剣と魔法を併せ持つ、二刀流の魔剣士タイプです。"
    ],
-   "executor": [
-    "あなたは考えるより先に動き、決断の速さで道を切り開く実行者タイプです。"
+   "paladin": [
+    "あなたは信念と守りで仲間を支える、パラディンタイプです。"
    ],
-   "supporter": [
-    "あなたは人の気持ちを敏感に察し、そっと支える共感型のタイプです。"
+   "assassin": [
+    "あなたは影から的確に仕留める、冷徹なアサシンタイプです。"
    ],
-   "harmonizer": [
-    "あなたは場の空気を整え、全体を調和させる調停役タイプです。"
+   "hunter": [
+    "あなたは獲物を読み切る、静かな狩人タイプです。"
    ],
-   "observer": [
-    "あなたは一歩引いて本質を見抜く、静かな観察者タイプです。"
+   "merchant": [
+    "あなたは機を見るに敏な、駆け引き上手の商人タイプです。"
    ],
-   "creator": [
-    "あなたは頭の中の世界を形にする、生まれながらの創り手タイプです。"
+   "alchemist": [
+    "あなたは物質の理を組み替える、錬金術師タイプです。"
    ],
-   "ideator": [
-    "あなたは次々とアイデアを生み出す、発想力に富んだタイプです。"
+   "bard": [
+    "あなたは言葉と歌で人を動かす、吟遊詩人タイプです。"
    ],
-   "explorer": [
-    "あなたは知らないことへ手を伸ばし続ける、好奇心の旅人タイプです。"
+   "knight": [
+    "あなたは規律と忠義に生きる、正統派の騎士タイプです。"
    ],
-   "communicator": [
-    "あなたは思いを言葉にのせて人を動かす、伝える力に長けたタイプです。"
+   "priest": [
+    "あなたは癒しと祈りで人を支える、僧侶タイプです。"
    ],
-   "balancer": [
-    "あなたはどの力にも偏らず、状況に応じて姿を変える均衡型タイプです。"
+   "thief": [
+    "あなたは素早さと機転で切り抜ける、自由な盗賊タイプです。"
+   ],
+   "summoner": [
+    "あなたは異界の力を呼び出す、神秘の召喚士タイプです。"
+   ],
+   "swordmaster": [
+    "あなたは一振りに全てを込める、剣聖タイプです。"
+   ],
+   "ninja": [
+    "あなたは闇に紛れ任務を遂げる、忍者タイプです。"
+   ],
+   "astrologer": [
+    "あなたは星に運命を読む、占星術師タイプです。"
+   ],
+   "beastmaster": [
+    "あなたは獣と心を交わす、獣使いタイプです。"
+   ],
+   "dragon": [
+    "あなたは天地を睥睨する、誇り高きドラゴンタイプです。"
+   ],
+   "phoenix": [
+    "あなたは何度でも蘇る、不屈のフェニックスタイプです。"
+   ],
+   "goblin": [
+    "あなたは小さくとも抜け目ない、ゴブリンタイプです。"
+   ],
+   "orc": [
+    "あなたは圧倒的な力で押し通す、オークタイプです。"
+   ],
+   "slime": [
+    "あなたはどんな形にも適応する、スライムタイプです。"
+   ],
+   "vampire": [
+    "あなたは永い時を生きる、優雅な吸血鬼タイプです。"
+   ],
+   "angel": [
+    "あなたは慈愛で人を導く、天使タイプです。"
+   ],
+   "demon": [
+    "あなたは欲望と創造を司る、悪魔タイプです。"
+   ],
+   "fairy": [
+    "あなたは気まぐれに舞う、妖精タイプです。"
+   ],
+   "elf": [
+    "あなたは森の理に通じる、聡明なエルフタイプです。"
+   ],
+   "dwarf": [
+    "あなたは鍛冶と大地を愛する、ドワーフタイプです。"
+   ],
+   "lizardman": [
+    "あなたは本能で生き抜く、リザードマンタイプです。"
+   ],
+   "golem": [
+    "あなたは理を黙々と遂行する、ゴーレムタイプです。"
+   ],
+   "necromancer": [
+    "あなたは死の理を操る、ネクロマンサータイプです。"
    ]
   },
   "strength": [
@@ -1801,5 +3126,57 @@
   "回答ベクトルを正規化しています…",
   "相関マトリクスを解析中…",
   "プロファイルの輪郭を抽出しています…"
- ]
+ ],
+ "typeGroups": {
+  "human": [
+   "hero",
+   "sage",
+   "mage",
+   "spellblade",
+   "paladin",
+   "assassin",
+   "hunter",
+   "merchant",
+   "alchemist",
+   "bard",
+   "knight",
+   "priest",
+   "thief",
+   "summoner",
+   "swordmaster",
+   "ninja",
+   "astrologer",
+   "beastmaster"
+  ],
+  "dragon": [
+   "dragon",
+   "lizardman"
+  ],
+  "bird": [
+   "phoenix",
+   "harpy"
+  ],
+  "demon": [
+   "vampire",
+   "demon",
+   "devil_lord",
+   "necromancer"
+  ],
+  "holy": [
+   "angel",
+   "fairy",
+   "elf"
+  ],
+  "beast": [
+   "goblin",
+   "orc",
+   "dwarf"
+  ],
+  "slime": [
+   "slime"
+  ],
+  "construct": [
+   "golem"
+  ]
+ }
 }

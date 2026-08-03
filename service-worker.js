@@ -10,7 +10,7 @@
 
 'use strict';
 
-const CACHE = 'apd-v4.0.0';
+const CACHE = 'apd-v5.0.0';
 
 const PRECACHE = [
   './',
@@ -20,6 +20,7 @@ const PRECACHE = [
   './themes.json',
   './questions.json',
   './real.json',
+  './avatar.json',
   './manifest.json',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',

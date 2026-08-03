@@ -1012,12 +1012,25 @@ const Screens = {
           <button id="btn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
           ${resumable ? `<button id="btn-resume" class="btn btn-ghost resume" type="button">
               前回の続きから — ${s.answered}問回答済み</button>` : ''}
+          <button id="btn-toreal" class="btn btn-ghost" type="button">本当に診断したい方はこちら</button>
         </div>
         <div class="ad-slot" data-slot="home"></div>
       </div>`;
     $('btn-start').addEventListener('click', () => {
       Store.reset();
       Screens.bootSession(true);
+    });
+    $('btn-toreal').addEventListener('click', async () => {
+      try { history.replaceState(null, '', location.pathname + '?mode=real'); } catch {}
+      try {
+        if (!RJ || !AV) {
+          [RJ, AV] = await Promise.all([
+            RJ ? Promise.resolve(RJ) : fetch('./real.json').then((r) => r.json()),
+            AV ? Promise.resolve(AV) : fetch('./avatar.json').then((r) => r.json()),
+          ]);
+        }
+        RealScreens.home();
+      } catch { /* 失敗時はジョーク版に留まる */ }
     });
     if (resumable) {
       $('btn-resume').addEventListener('click', () => {
@@ -1485,9 +1498,14 @@ const Screens = {
       Store.reset();
       try { history.replaceState(null, '', location.pathname + '?mode=real'); } catch { /* 環境依存・任意 */ }
       try {
-        if (!RJ) RJ = await fetch('./real.json').then((r) => r.json());
+        if (!RJ || !AV) {
+          [RJ, AV] = await Promise.all([
+            RJ ? Promise.resolve(RJ) : fetch('./real.json').then((r) => r.json()),
+            AV ? Promise.resolve(AV) : fetch('./avatar.json').then((r) => r.json()),
+          ]);
+        }
         RealScreens.home();
-        RealScreens.begin();   // ボタン導線からは直接開始（ホームを経由しない）
+        RealScreens.begin();   // ボタン導線からは直接開始
       } catch {
         Screens.home();
       }
@@ -1652,6 +1670,184 @@ const RealEngine = {
   stars(scoreAvg) { return clamp(Math.round(scoreAvg / 20), 1, 5); },
 };
 
+/** @type {any} */ let AV = null;   // avatar.json
+
+/* ---------------------------------------------------------------------
+ * AvatarBuilder — 回答特徴量から各レイヤーのパーツindexを決定（決定論）
+ * 表情（目/眉/口）は特徴量ルールに連動、それ以外は安定ハッシュで選択。
+ * ------------------------------------------------------------------- */
+const AvatarBuilder = {
+  hash(answers, salt) {
+    let h = 2166136261 ^ salt;
+    for (const a of answers) { h ^= (a.qi * 31 + a.value * 7 + salt); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;
+  },
+  pickIdx(answers, kind, len) {
+    let salt = 0;
+    for (let i = 0; i < kind.length; i++) salt = (salt * 131 + kind.charCodeAt(i)) >>> 0;
+    return AvatarBuilder.hash(answers, salt) % len;
+  },
+
+  build(answers, scores, type) {
+    const g = type.group;
+    const P = AvatarBuilder.pickIdx;
+    const mood = AvatarBuilder.mood(scores);
+    const mouthIdx = AV.mouth.findIndex((m) => m.mood === mood.mouth);
+    const topAxis = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id])[0].id;
+    const hueMap = { logic: 0, caution: 7, challenge: 10, empathy: 3, flexibility: 4,
+      creativity: 5, cooperation: 6, planning: 11, curiosity: 8, stress: 12 };
+    const hairColorIdx = (hueMap[topAxis] ?? 0) % AV.hairColors.length;
+    const groupExtras = AvatarBuilder.groupExtras(g, answers);
+
+    return {
+      type, group: g,
+      typeColor: AV.typeColors[type.id] || '#7c8cff',
+      bg: P(answers, 'bg', AV.background.length),
+      face: P(answers, 'face', AV.face.length),
+      hair: P(answers, 'hair', AV.hair.length),
+      hairColor: hairColorIdx,
+      eyes: P(answers, 'eyes', AV.eyes.length),
+      eyebrows: mood.brow % AV.eyebrows.length,
+      nose: P(answers, 'nose', AV.nose.length),
+      mouth: mouthIdx >= 0 ? mouthIdx : 0,
+      ears: (g === 'holy' || g === 'dragon') ? Math.max(0, AV.ears.findIndex((e) => e.pointed)) : P(answers, 'ears', AV.ears.length),
+      beard: P(answers, 'beard', AV.beard.length),
+      scar: scores.stress > 75 ? P(answers, 'scar', AV.scar.length) : 0,
+      glasses: scores.logic > 80 ? (1 + P(answers, 'glass', AV.glasses.length - 1)) : 0,
+      mole: P(answers, 'mole', AV.mole.length),
+      accessory: P(answers, 'acc', AV.accessory.length),
+      ...groupExtras,
+      moodName: mood.name,
+    };
+  },
+
+  mood(s) {
+    if (s.challenge >= 70)  return { name: 'confident', mouth: 'smile',   brow: 4 };
+    if (s.empathy >= 72)    return { name: 'gentle',    mouth: 'smile',   brow: 8 };
+    if (s.stress < 45)      return { name: 'worried',   mouth: 'frown',   brow: 12 };
+    if (s.logic >= 78)      return { name: 'calm',      mouth: 'neutral', brow: 0 };
+    if (s.caution >= 75)    return { name: 'serious',   mouth: 'neutral', brow: 2 };
+    if (s.creativity >= 75) return { name: 'playful',   mouth: 'smirk',   brow: 16 };
+    return { name: 'neutral', mouth: 'neutral', brow: 6 };
+  },
+
+  groupExtras(g, answers) {
+    const P = AvatarBuilder.pickIdx;
+    const map = {
+      dragon:   { horn: 1 + P(answers, 'horn', 3), helmet: 0, effect: 'fire' },
+      demon:    { horn: 4 + P(answers, 'horn', 3), helmet: 0, effect: 'dark' },
+      holy:     { horn: 0, helmet: 0, effect: 'halo' },
+      bird:     { horn: 0, helmet: 0, effect: 'flame' },
+      beast:    { horn: P(answers, 'horn', 4), helmet: 0, effect: 'none' },
+      construct:{ horn: 0, helmet: 1 + P(answers, 'helm', 3), effect: 'none' },
+      slime:    { horn: 0, helmet: 0, effect: 'bubble' },
+      human:    { horn: 0, helmet: P(answers, 'helm2', 2) ? 1 + P(answers, 'helm', 9) : 0, effect: 'none' },
+    };
+    return map[g] || map.human;
+  },
+};
+
+/* ---------------------------------------------------------------------
+ * ImageGenerator（抽象）→ 現在 SVGGenerator / 将来 APIImageGenerator
+ * ------------------------------------------------------------------- */
+class ImageGenerator {
+  generate(_features) { throw new Error('not implemented'); }
+}
+
+class SVGGenerator extends ImageGenerator {
+  generate(f) {
+    const svg = SVGGenerator.compose(f);
+    return { svg, toPNG: (size = 512) => SVGGenerator.toPNG(svg, size) };
+  }
+
+  static compose(f) {
+    const C = f.typeColor;
+    const hair = AV.hairColors[f.hairColor];
+    const bg = AV.background[f.bg].color;
+    const L = [];
+    const path = (d, fill, stroke, w) => d ? `<path d="${d}" fill="${fill || 'none'}" stroke="${stroke || 'none'}" stroke-width="${w || 0}" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+
+    L.push(`<rect x="0" y="0" width="320" height="320" fill="${bg}"/>`);
+    L.push(`<circle cx="160" cy="150" r="150" fill="${C}" opacity="0.12"/>`);
+    const body = AV.bodyTemplates[f.group] || AV.bodyTemplates.human;
+    if (body.wings) L.push(SVGGenerator.wings(C, f.group));
+    // body（首から下）→ 耳 → 顔 の順で頭が体に乗る
+    L.push(path(body.base, C, '#0b0e1a', 3));
+    L.push(path(body.base, 'rgba(255,255,255,0.08)', 'none', 0));
+    L.push(path(AV.ears[f.ears].d, '#f0d3b0', '#0b0e1a', 2.5));
+    L.push(path(AV.face[f.face].d, '#f0d3b0', '#0b0e1a', 3));
+    // 顔パーツ
+    { const b = AV.eyebrows[f.eyebrows]; L.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
+    { const e = AV.eyes[f.eyes]; L.push(path(e.d, '#fff', '#0b0e1a', 2)); L.push(path(e.pupil, '#2b2b3a', 'none', 0)); }
+    L.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
+    L.push(path(AV.mouth[f.mouth].d, 'none', '#aa4444', 3));
+    L.push(path(AV.beard[f.beard].d, hair, hair, 2));
+    L.push(path(AV.scar[f.scar].d, 'none', '#cc9966', 2.5));
+    L.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
+    L.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
+    // 髪は顔の上に重ねて輪郭を締める
+    L.push(path(AV.hair[f.hair].d, hair, '#0b0e1a', 2.5));
+    // 頭部装備・装飾
+    L.push(path(AV.horn[f.horn].d, C, '#0b0e1a', 2.5));
+    L.push(path(AV.helmet[f.helmet].d, C, '#0b0e1a', 3));
+    L.push(path(AV.accessory[f.accessory].d, '#e8c36a', '#0b0e1a', 1.5));
+    L.push(SVGGenerator.effect(f.effect, C));
+    L.push(`<rect x="3" y="3" width="314" height="314" rx="24" fill="none" stroke="${C}" stroke-width="3" opacity="0.6"/>`);
+    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">${L.join('')}</svg>`;
+  }
+
+  static wings(C, g) {
+    if (g === 'dragon') return `<path d="M104,240 C60,200 40,240 70,270 C90,258 100,258 116,262 Z M216,240 C260,200 280,240 250,270 C230,258 220,258 204,262 Z" fill="${C}" stroke="#0b0e1a" stroke-width="2.5" opacity="0.9"/>`;
+    return `<path d="M112,236 C70,214 54,246 80,270 C98,256 104,256 120,258 Z M208,236 C250,214 266,246 240,270 C222,256 216,256 200,258 Z" fill="#fff" stroke="#0b0e1a" stroke-width="2" opacity="0.85"/>`;
+  }
+
+  static effect(kind, C) {
+    switch (kind) {
+      case 'halo': return `<ellipse cx="160" cy="52" rx="40" ry="10" fill="none" stroke="#e8c36a" stroke-width="3" opacity="0.9"/>`;
+      case 'fire': case 'flame': return `<path d="M60,70 q10,-24 20,0 q10,-16 6,20 M260,70 q-10,-24 -20,0 q-10,-16 -6,20" fill="none" stroke="#d8863a" stroke-width="4" opacity="0.8"/>`;
+      case 'dark': return `<circle cx="160" cy="150" r="140" fill="none" stroke="#8a2b6a" stroke-width="6" opacity="0.25"/>`;
+      case 'bubble': return `<circle cx="90" cy="120" r="6" fill="#fff" opacity="0.5"/><circle cx="235" cy="140" r="9" fill="#fff" opacity="0.4"/><circle cx="210" cy="90" r="5" fill="#fff" opacity="0.5"/>`;
+      default: return '';
+    }
+  }
+
+  static toPNG(svg, size) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = size; cv.height = size;
+        cv.getContext('2d').drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        cv.toBlob((b) => resolve(b), 'image/png');
+      };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+}
+
+/* PromptGenerator — 将来の画像生成API用（現在はプロンプト文字列のみ） */
+class PromptGenerator {
+  static generate(features, scores, type) {
+    const hairEn = ['Black','Brown','LightBrown','Sandy','Amber','Blonde','Platinum',
+      'Blue','Purple','Rose','Crimson','Teal','Green','Emerald','Silver','White'][features.hairColor] || 'Black';
+    const moodEn = { confident:'Confident', gentle:'Gentle Eyes', worried:'Slightly Worried',
+      calm:'Calm', serious:'Serious', playful:'Playful', neutral:'Neutral' }[features.moodName] || 'Neutral';
+    const nameEn = type.id.charAt(0).toUpperCase() + type.id.slice(1);
+    const top = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id]).slice(0,2)
+      .map((a)=>({logic:'Logical',caution:'Cautious',challenge:'Brave',empathy:'Empathetic',
+        flexibility:'Flexible',creativity:'Creative',cooperation:'Cooperative',planning:'Strategic',
+        curiosity:'Curious',stress:'Resilient'}[a.id])).join(', ');
+    return [nameEn, `${hairEn} Hair`, moodEn, top, 'Fantasy RPG character', 'icon style'].join(', ');
+  }
+}
+
+/** 現在のジェネレータ（差し替え1点でAI画像化） */
+const Avatar = new SVGGenerator();
+
 const RealScreens = {
   state: null,   // { answers:[{qi,value}], order:[...] }
 
@@ -1774,9 +1970,14 @@ const RealScreens = {
     const { type, rare } = RealEngine.classify(scores);
     const conf = RealEngine.confidence(st.answers);
     const report = RealEngine.generateReport(scores, type, rng2);
-    const apt = RJ.aptitudes[type.id];
-    const goodTypes = type.match.good.map((id)=>RJ.types.find((t)=>t.id===id));
-    const learnTypes = type.match.learn.map((id)=>RJ.types.find((t)=>t.id===id));
+    const apt = type.aptitudes || RJ.aptitudes?.[type.id];
+    const goodTypes = type.match.good.map((id)=>RJ.types.find((t)=>t.id===id)).filter(Boolean);
+    const learnTypes = type.match.learn.map((id)=>RJ.types.find((t)=>t.id===id)).filter(Boolean);
+
+    // SVGアバター生成（決定論）
+    const features = AvatarBuilder.build(st.answers, scores, type);
+    const avatar = Avatar.generate(features);
+    RealScreens._last = { scores, type, conf, features, avatar, apt };
 
     const sortedAxes = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id]);
     const jobsAvg = (scores.logic+scores.planning+scores.challenge)/3;
@@ -1801,6 +2002,7 @@ const RealScreens = {
           <div class="rr-head">
             <div class="rr-kicker">AI解析レポート</div>
             ${rare?'<div class="rr-rare">稀な明瞭さ</div>':''}
+            <div class="rr-avatar">${avatar.svg}</div>
             <div class="rr-type">${esc(type.icon)} ${esc(type.name)}</div>
             <div class="rr-summary">${esc(type.summary)}</div>
             <div class="rr-conf">AI Confidence <b class="num">${conf}</b>%</div>
@@ -1856,9 +2058,9 @@ const RealScreens = {
         <p class="rr-note">${esc(RJ.report.note)}</p>
 
         <div class="rr-actions">
-          <button id="rr-share" class="btn btn-primary" type="button">結果をシェア</button>
+          <button id="rr-share" class="btn btn-primary" type="button">結果を画像でシェア</button>
           <button id="rr-again" class="btn btn-secondary" type="button">もう一度</button>
-          <button id="rr-joke" class="btn btn-ghost" type="button">遊びの診断へ</button>
+          <button id="rr-joke" class="btn btn-ghost" type="button">ジョーク診断はこちら</button>
         </div>
         <div class="ad-slot" data-slot="share"></div>
       </div>`;
@@ -1870,9 +2072,9 @@ const RealScreens = {
       if (poly){ poly.style.transform='scale(1)'; poly.style.opacity='1'; }
     });
 
-    $('rr-share').addEventListener('click', ()=>RealScreens.share(type, conf, scores));
+    $('rr-share').addEventListener('click', ()=>RealScreens.share());
     $('rr-again').addEventListener('click', ()=>RealScreens.begin());
-    $('rr-joke').addEventListener('click', ()=>{ history.replaceState(null,'',location.pathname); Store.reset(); Screens.home(); });
+    $('rr-joke').addEventListener('click', ()=>RealScreens.toJoke());
   },
 
   /** 10軸レーダーチャート（依存なしSVG） */
@@ -1898,15 +2100,132 @@ const RealScreens = {
       ${labels}</svg>`;
   },
 
-  share(type, conf, scores) {
-    const top = [...RJ.axes].sort((a,b)=>scores[b.id]-scores[a.id])[0].name;
-    const text = `AI性格診断(Real)の結果は「${type.name}」でした。\n最も高い特性は${top}。AI Confidence ${conf}%。`;
-    const url = location.href.split('#')[0];
-    (async()=>{
-      try { if (navigator.share){ await navigator.share({ text, url }); return; } } catch { return; }
+  /** 本物版のURL（?mode=real 固定・ジョーク版と独立） */
+  realUrl() {
+    return location.origin + location.pathname + '?mode=real';
+  },
+  toJoke() {
+    try { history.replaceState(null, '', location.pathname); } catch {}
+    Store.reset();
+    Screens.home();
+  },
+
+  async share() {
+    const L = RealScreens._last;
+    if (!L) return;
+    const url = RealScreens.realUrl();
+    const topAxis = [...RJ.axes].sort((a,b)=>L.scores[b.id]-L.scores[a.id])[0].name;
+    const text = `AI性格診断(Real)の結果は「${L.type.name}」でした。\n最も高い特性は${topAxis}。AI Confidence ${L.conf}%。\nあなたの職業は？`;
+    UI.toast('画像を生成しています…');
+    try {
+      const blob = await RealCard.render(L);
+      const file = new File([blob], 'rpg-result.png', { type: 'image/png' });
+      // ダウンロードも用意（確実に手元に残る）
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'rpg-result.png'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ text, url, files: [file] }); return;
+      }
+      if (navigator.share) { await navigator.share({ text, url }); return; }
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      UI.toast('画像を保存し、テキストをコピーしました');
+    } catch (e) {
       try { await navigator.clipboard.writeText(`${text}\n${url}`); UI.toast('コピーしました'); }
-      catch { UI.toast('コピーできませんでした'); }
-    })();
+      catch { UI.toast('シェアできませんでした'); }
+    }
+  },
+};
+
+/* ---------------------------------------------------------------------
+ * RealCard — 共有用キャラクターカード（1080x1350 PNG・Canvas）
+ *   中央に大きくSVGアバター＋能力バー＋総評＋職業＋Confidence＋URL。
+ * ------------------------------------------------------------------- */
+const RealCard = {
+  async render(L) {
+    const W = 1080, H = 1350;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const C = L.features.typeColor;
+    const F = '"Hiragino Sans","Noto Sans JP",sans-serif';
+
+    ctx.fillStyle = '#0B0E1A'; ctx.fillRect(0, 0, W, H);
+    const g = ctx.createRadialGradient(W/2, 420, 0, W/2, 420, 720);
+    g.addColorStop(0, RealCard._hexA(C, 0.28)); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    RealCard._round(ctx, 60, 60, W-120, H-120, 44);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+    ctx.strokeStyle = RealCard._hexA(C, 0.7); ctx.lineWidth = 4; ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9AA3BF'; ctx.font = `600 34px ${F}`;
+    ctx.fillText('AI 性格診断  Real', W/2, 150);
+    ctx.fillStyle = '#EDEFF7'; ctx.font = `800 68px ${F}`;
+    ctx.fillText(`${L.type.icon} ${L.type.name}`, W/2, 232);
+    ctx.fillStyle = C; ctx.font = `500 30px ${F}`;
+    RealCard._wrap(ctx, L.type.summary, W/2, 284, W-220, 40);
+
+    const av = await SVGGenerator.toPNG(L.avatar.svg, 512);
+    const avImg = await RealCard._img(av);
+    const AVSZ = 460, ax = W/2 - AVSZ/2, ay = 330;
+    RealCard._round(ctx, ax-8, ay-8, AVSZ+16, AVSZ+16, 32);
+    ctx.strokeStyle = RealCard._hexA(C, 0.6); ctx.lineWidth = 3; ctx.stroke();
+    ctx.drawImage(avImg, ax, ay, AVSZ, AVSZ);
+
+    const top5 = [...RJ.axes].sort((a,b)=>L.scores[b.id]-L.scores[a.id]).slice(0,5);
+    let by = 860;
+    ctx.textAlign = 'left';
+    for (const a of top5) {
+      const s = L.scores[a.id];
+      ctx.fillStyle = '#9AA3BF'; ctx.font = `500 28px ${F}`;
+      ctx.fillText(a.name, 130, by+22);
+      const bx = 340, bw = 500, bh = 20;
+      RealCard._round(ctx, bx, by+4, bw, bh, 10); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
+      RealCard._round(ctx, bx, by+4, bw*(s/100), bh, 10);
+      const grad = ctx.createLinearGradient(bx, 0, bx+bw, 0);
+      grad.addColorStop(0, C); grad.addColorStop(1, '#4FD8C8'); ctx.fillStyle = grad; ctx.fill();
+      ctx.fillStyle = '#EDEFF7'; ctx.font = `700 28px ${F}`; ctx.textAlign = 'right';
+      ctx.fillText(String(s), 900, by+24); ctx.textAlign = 'left';
+      by += 46;
+    }
+
+    by += 14;
+    ctx.fillStyle = '#EDEFF7'; ctx.font = `500 27px ${F}`; ctx.textAlign = 'center';
+    by = RealCard._wrap(ctx, L.apt ? `向いている職業：${L.apt.jobs.slice(0,3).join('・')}` : '', W/2, by+10, W-220, 38);
+
+    ctx.fillStyle = C; ctx.font = `700 40px ${F}`;
+    ctx.fillText(`AI Confidence ${L.conf}%`, W/2, by+30);
+
+    ctx.fillStyle = '#9AA3BF'; ctx.font = `500 26px ${F}`;
+    ctx.fillText(RealScreens.realUrl().replace(/^https?:\/\//, ''), W/2, H-96);
+
+    return new Promise((res)=>cv.toBlob((b)=>res(b), 'image/png'));
+  },
+  _round(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else { ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); }
+    ctx.closePath();
+  },
+  _wrap(ctx, text, cx, y, maxW, lh) {
+    if (!text) return y;
+    const chars = [...text]; let line = '';
+    for (const ch of chars) {
+      if (ctx.measureText(line+ch).width > maxW) { ctx.fillText(line, cx, y); line = ch; y += lh; }
+      else line += ch;
+    }
+    if (line) { ctx.fillText(line, cx, y); y += lh; }
+    return y;
+  },
+  _img(blob) {
+    return new Promise((res, rej)=>{ const i=new Image(); const u=URL.createObjectURL(blob);
+      i.onload=()=>{URL.revokeObjectURL(u);res(i);}; i.onerror=rej; i.src=u; });
+  },
+  _hexA(hex, a) {
+    const n = hex.replace('#',''); const r=parseInt(n.slice(0,2),16), gg=parseInt(n.slice(2,4),16), b=parseInt(n.slice(4,6),16);
+    return `rgba(${r},${gg},${b},${a})`;
   },
 };
 
@@ -1970,10 +2289,13 @@ async function init() {
   const isReal = new URLSearchParams(location.search).get('mode') === 'real';
   if (isReal) {
     try {
-      RJ = await fetch('./real.json').then((r) => r.json());
+      [RJ, AV] = await Promise.all([
+        fetch('./real.json').then((r) => r.json()),
+        fetch('./avatar.json').then((r) => r.json()),
+      ]);
       RealScreens.home();
     } catch {
-      Screens.home();   // real.json 取得失敗時はジョーク版へフォールバック
+      Screens.home();   // 取得失敗時はジョーク版へフォールバック
     }
   } else {
     Screens.home();
