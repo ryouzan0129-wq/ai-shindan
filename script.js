@@ -1838,6 +1838,46 @@ class SVGGenerator extends ImageGenerator {
   }
 
   static compose(f) {
+    if (AV.bodyImage && AV.bodyImage.enabled) return SVGGenerator.composeImageBody(f);
+    return SVGGenerator.composeSVG(f);
+  }
+
+  /**
+   * 画像body合成：body/髪/装備/角/兜はAI画像が担う。
+   * SVGは顔パーツ(のっぺらぼうに乗せる目鼻口)＋属性エフェクトのみ。
+   * 顔パーツは共通faceAnchorへ移動・スケール。タイプ別offsetで微調整可能。
+   */
+  static composeImageBody(f) {
+    const C = f.typeColor;
+    const B = AV.bodyImage;
+    const A = B.faceAnchor;
+    const off = (B.offsets && B.offsets[f.type.id]) || { dx: 0, dy: 0, scale: 1 };
+    const path = (d, fill, stroke, w) => d ? `<path d="${d}" fill="${fill || 'none'}" stroke="${stroke || 'none'}" stroke-width="${w || 0}" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+
+    const [FCX, FCY] = AV.faceCenter || [160, 128];
+    const pcy = B.partsCenterY ?? FCY;   // 目鼻口群の縦中心（アンカーに合わせる基準）
+    const scale = (B.faceScale || 0.82) * (off.scale || 1);
+    const tx = (A.cx + off.dx) - FCX * scale;
+    const ty = (A.cy + off.dy) - pcy * scale;
+
+    const faceParts = [];
+    { const b = AV.eyebrows[f.eyebrows]; faceParts.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
+    { const e = AV.eyes[f.eyes]; faceParts.push(path(e.d, '#fff', '#0b0e1a', 2)); faceParts.push(path(e.pupil, '#2b2b3a', 'none', 0)); }
+    faceParts.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
+    faceParts.push(path(AV.mouth[f.mouth].d, 'none', '#aa4444', 3));
+    faceParts.push(path(AV.beard[f.beard].d, AV.hairColors[f.hairColor], AV.hairColors[f.hairColor], 2));
+    faceParts.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
+    faceParts.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
+
+    const href = `${B.path}${f.type.id}${B.ext}`;
+    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">`
+      + `<image href="${href}" x="0" y="0" width="320" height="320" preserveAspectRatio="xMidYMid meet" onerror="this.remove()"/>`
+      + `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(3)})">${faceParts.join('')}</g>`
+      + SVGGenerator.effect(f.effect, C)
+      + `</svg>`;
+  }
+
+  static composeSVG(f) {
     const C = f.typeColor;
     const hair = AV.hairColors[f.hairColor];
     const bg = AV.background[f.bg].color;
@@ -1901,9 +1941,11 @@ class SVGGenerator extends ImageGenerator {
   }
 
   static toPNG(svg, size) {
-    return new Promise((resolve, reject) => {
+    // 外部<image href>があると blob-SVG では解決できずcanvasが汚染される。
+    // 画像を base64 に埋め込んでから描画する。
+    return SVGGenerator._inlineImages(svg).then((inlined) => new Promise((resolve, reject) => {
       const img = new Image();
-      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const blob = new Blob([inlined], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       img.onload = () => {
         const cv = document.createElement('canvas');
@@ -1914,7 +1956,22 @@ class SVGGenerator extends ImageGenerator {
       };
       img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
       img.src = url;
-    });
+    }));
+  }
+
+  /** SVG内の <image href="...png"> を base64 データURIに変換 */
+  static async _inlineImages(svg) {
+    const re = /href="((?:\.\/|\/)[^"]+\.(?:png|jpg|jpeg|webp))"/g;
+    const urls = [...new Set([...svg.matchAll(re)].map((m) => m[1]))];
+    for (const u of urls) {
+      try {
+        const res = await fetch(u);
+        const blob = await res.blob();
+        const dataUri = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+        svg = svg.split(`href="${u}"`).join(`href="${dataUri}"`);
+      } catch { /* 画像が無ければそのまま（描画されないだけ） */ }
+    }
+    return svg;
   }
 }
 

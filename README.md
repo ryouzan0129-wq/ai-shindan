@@ -324,3 +324,27 @@ Real Edition のリザルトを、RPGの「クリア画面」風に刷新しま�
 
 ### 共有画像（ゲームカード風）
 「結果を画像でシェア」で、レア枠＋魔法陣風背景＋アバター＋LV/主要ステータス＋属性＋称号＋タイプ名＋URLのキャラクターカード（1080×1350 PNG）を生成します。
+
+---
+
+## v7.0：AI生成bodyアバター（のっぺらぼう＋SVG顔合成）
+
+アバターを、AI生成のチビキャラ画像（顔なし）＋SVG顔パーツの合成方式に切り替えました。
+
+### 仕組み
+- `assets/bodies/{typeid}.png`：AI生成のチビ全身画像（**顔は空白＝のっぺらぼう**、透過PNG、正面）。
+- アプリは画像を背面に敷き、**目・眉・鼻・口（表情）だけをSVGで顔の位置に重ねます**。表情は診断結果で変わり、決定論的。
+- 切替は `avatar.json` の `bodyImage.enabled`。`false` にすると従来の全SVG生成に戻ります（フォールバック）。
+
+### 顔位置の調整
+- 共通アンカー `bodyImage.faceAnchor`（全32体の平均値）で大半が合います。
+- 各タイプの微調整は `bodyImage.offsets[typeid] = {dx, dy, scale}`。
+- 付属の **`face-tuner.html`** をブラウザで開くと、画像を見ながらドラッグ／スライダーで顔位置を合わせ、`offsets` のJSONを書き出せます（開発用・配布物には含めません）。
+
+### 画像の追加手順
+1. 32枚の顔なしPNGを `assets/bodies/{typeid}.png` として配置（`typeid` は hero, sage, dragon… 一覧は `real.json` の `types[].id`）。
+2. `face-tuner.html` で位置を合わせ、出力JSONを `avatar.json` の `bodyImage.offsets` に貼り付け。
+3. `service-worker.js` の `CACHE` を上げて再デプロイ。
+
+### 将来のAI画像API化
+`ImageGenerator`→`SVGGenerator` の構造は不変。bodyだけ差し替える設計なので、静的PNGを動的生成画像に置き換える拡張も同じ差し込み点で可能です。

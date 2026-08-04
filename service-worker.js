@@ -10,7 +10,7 @@
 
 'use strict';
 
-const CACHE = 'apd-v6.0.0';
+const CACHE = 'apd-v7.1.0';
 
 const PRECACHE = [
   './',
@@ -21,6 +21,38 @@ const PRECACHE = [
   './questions.json',
   './real.json',
   './avatar.json',
+  './assets/bodies/hero.png',
+  './assets/bodies/sage.png',
+  './assets/bodies/mage.png',
+  './assets/bodies/spellblade.png',
+  './assets/bodies/paladin.png',
+  './assets/bodies/assassin.png',
+  './assets/bodies/hunter.png',
+  './assets/bodies/merchant.png',
+  './assets/bodies/alchemist.png',
+  './assets/bodies/bard.png',
+  './assets/bodies/knight.png',
+  './assets/bodies/priest.png',
+  './assets/bodies/thief.png',
+  './assets/bodies/summoner.png',
+  './assets/bodies/swordmaster.png',
+  './assets/bodies/ninja.png',
+  './assets/bodies/astrologer.png',
+  './assets/bodies/beastmaster.png',
+  './assets/bodies/dragon.png',
+  './assets/bodies/phoenix.png',
+  './assets/bodies/goblin.png',
+  './assets/bodies/orc.png',
+  './assets/bodies/slime.png',
+  './assets/bodies/vampire.png',
+  './assets/bodies/angel.png',
+  './assets/bodies/demon.png',
+  './assets/bodies/fairy.png',
+  './assets/bodies/elf.png',
+  './assets/bodies/dwarf.png',
+  './assets/bodies/lizardman.png',
+  './assets/bodies/golem.png',
+  './assets/bodies/necromancer.png',
   './manifest.json',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',
@@ -32,7 +64,7 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      .then((cache) => Promise.allSettled(PRECACHE.map((u) => cache.add(u))))
       .then(() => self.skipWaiting())
   );
 });
