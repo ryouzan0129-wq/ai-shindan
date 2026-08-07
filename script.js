@@ -1761,11 +1761,32 @@ const AvatarBuilder = {
     return AvatarBuilder.hash(answers, salt) % len;
   },
 
+  /** 表情(mood)→口パーツindex。mouthByExpr があればそれを使い、無ければ旧mood/ハッシュ。 */
+  pickMouth(moodName) {
+    if (AV.moodEyeMap && AV.mouthByExpr) {
+      const expr = AV.moodEyeMap[moodName] || moodName;
+      const idx = AV.mouthByExpr[expr];
+      if (typeof idx === 'number') return idx;
+    }
+    const legacy = AV.mouth.findIndex((m) => m.mood === moodName);
+    return legacy >= 0 ? legacy : 0;
+  },
+
+  /** 表情(mood)→目パーツindex。moodEyeMap/eyesByExpr があればそれを使い、無ければハッシュ選択。 */
+  pickEyes(answers, moodName) {
+    if (AV.moodEyeMap && AV.eyesByExpr) {
+      const expr = AV.moodEyeMap[moodName] || moodName;
+      const idx = AV.eyesByExpr[expr];
+      if (typeof idx === 'number') return idx;
+    }
+    return AvatarBuilder.pickIdx(answers, 'eyes', AV.eyes.length);
+  },
+
   build(answers, scores, type, gender = 'neutral') {
     const g = type.group;
     const P = AvatarBuilder.pickIdx;
     const mood = AvatarBuilder.mood(scores);
-    const mouthIdx = AV.mouth.findIndex((m) => m.mood === mood.mouth);
+    const mouthIdx = AvatarBuilder.pickMouth(mood.name);
     const topAxis = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id])[0].id;
     const hueMap = { logic: 0, caution: 7, challenge: 10, empathy: 3, flexibility: 4,
       creativity: 5, cooperation: 6, planning: 11, curiosity: 8, stress: 12 };
@@ -1781,7 +1802,7 @@ const AvatarBuilder = {
       face: P(answers, 'face', AV.face.length),
       hair: P(answers, 'hair', AV.hair.length),
       hairColor: hairColorIdx,
-      eyes: P(answers, 'eyes', AV.eyes.length),
+      eyes: AvatarBuilder.pickEyes(answers, mood.name),
       eyebrows: mood.brow % AV.eyebrows.length,
       nose: P(answers, 'nose', AV.nose.length),
       mouth: mouthIdx >= 0 ? mouthIdx : 0,
@@ -1837,6 +1858,21 @@ class SVGGenerator extends ImageGenerator {
     return { svg, toPNG: (size = 512) => SVGGenerator.toPNG(svg, size) };
   }
 
+  /** 髪の色変換を事前に済ませる（result描画前に await）。失敗しても素の茶髪で続行。 */
+  static async prepareHair(f) {
+    try {
+      if (!(AV.hairImage && AV.hairImage.enabled)) return;
+      const h = AV.hair[f.hair];
+      if (!h || !h.img) return;
+      if (typeof document === 'undefined' || typeof Image === 'undefined') return;
+      // canvasが使えない環境（ヘッドレス/テスト）ではスキップ（素の茶髪で表示）
+      const testCv = document.createElement('canvas');
+      if (!testCv.getContext || !testCv.getContext('2d')) return;
+      const hairColor = AV.hairColors[f.hairColor] || '#5a3a24';
+      await SVGGenerator.recolorHair(h.img, hairColor);
+    } catch { /* 素の茶髪でOK */ }
+  }
+
   static compose(f) {
     if (AV.bodyImage && AV.bodyImage.enabled) return SVGGenerator.composeImageBody(f);
     return SVGGenerator.composeSVG(f);
@@ -1851,7 +1887,8 @@ class SVGGenerator extends ImageGenerator {
     const C = f.typeColor;
     const B = AV.bodyImage;
     const A = B.faceAnchor;
-    const off = (B.offsets && B.offsets[f.type.id]) || { dx: 0, dy: 0, scale: 1 };
+    const offTable = (f.gender === 'female' && B.femaleOffsets) ? B.femaleOffsets : B.offsets;
+    const off = (offTable && offTable[f.type.id]) || { dx: 0, dy: 0, scale: 1 };
     const path = (d, fill, stroke, w) => d ? `<path d="${d}" fill="${fill || 'none'}" stroke="${stroke || 'none'}" stroke-width="${w || 0}" stroke-linejoin="round" stroke-linecap="round"/>` : '';
 
     const [FCX, FCY] = AV.faceCenter || [160, 128];
@@ -1860,21 +1897,114 @@ class SVGGenerator extends ImageGenerator {
     const tx = (A.cx + off.dx) - FCX * scale;
     const ty = (A.cy + off.dy) - pcy * scale;
 
-    const faceParts = [];
-    { const b = AV.eyebrows[f.eyebrows]; faceParts.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
-    { const e = AV.eyes[f.eyes]; faceParts.push(path(e.d, '#fff', '#0b0e1a', 2)); faceParts.push(path(e.pupil, '#2b2b3a', 'none', 0)); }
-    faceParts.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
-    faceParts.push(path(AV.mouth[f.mouth].d, 'none', '#aa4444', 3));
-    faceParts.push(path(AV.beard[f.beard].d, AV.hairColors[f.hairColor], AV.hairColors[f.hairColor], 2));
-    faceParts.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
-    faceParts.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
+    const facePre = [];   // 眉（目の下地）
+    const eyesLayer = [];  // 目（hairEyeOverなら髪の上へ）
+    const facePost = [];   // 鼻・口・ひげ・ほくろ・眼鏡
+    { const b = AV.eyebrows[f.eyebrows]; facePre.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
+    { const e = AV.eyes[f.eyes]; if (e.svg) eyesLayer.push(e.svg); else { eyesLayer.push(path(e.d, '#fff', '#0b0e1a', 2)); eyesLayer.push(path(e.pupil, '#2b2b3a', 'none', 0)); } }
+    facePost.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
+    { const mo = AV.mouth[f.mouth]; if (mo.svg) facePost.push(mo.svg); else facePost.push(path(mo.d, 'none', '#aa4444', 3)); }
+    facePost.push(path(AV.beard[f.beard].d, AV.hairColors[f.hairColor], AV.hairColors[f.hairColor], 2));
+    facePost.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
+    facePost.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
 
-    const href = `${B.path}${f.type.id}${B.ext}`;
+    const wrapFace = (parts) => `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(3)})">${parts.join('')}</g>`;
+
+    // 性別つきbody画像：女性は {id}_female.png、それ以外（男性/中性）は {id}.png
+    const genderSuffix = (f.gender === 'female' && B.femaleSuffix !== false) ? '_female' : '';
+    const href = `${B.path}${f.type.id}${genderSuffix}${B.ext}`;
+    const h = AV.hair[f.hair];
+    const hid = h && h.id;
+    const eyeOver = AV.hairEyeOver && hid && AV.hairEyeOver.includes(hid);
+    const hairSvg = SVGGenerator.hairLayer(f);
+    const bodyImg = `<image href="${href}" x="0" y="0" width="320" height="320" preserveAspectRatio="xMidYMid meet" onerror="this.remove()"/>`;
+
+    // レイヤー順
+    let layers = '';
+    layers += bodyImg;
+    layers += wrapFace(facePre);                // 眉
+    if (!eyeOver) layers += wrapFace(eyesLayer); // 通常は目→髪の下
+    layers += wrapFace(facePost);               // 鼻口ひげ
+    layers += hairSvg;                          // 髪（顔の上）
+    if (eyeOver) layers += wrapFace(eyesLayer);  // 前髪パッツン系は目を髪の上に
+
     return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">`
-      + `<image href="${href}" x="0" y="0" width="320" height="320" preserveAspectRatio="xMidYMid meet" onerror="this.remove()"/>`
-      + `<g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${scale.toFixed(3)})">${faceParts.join('')}</g>`
+      + layers
       + SVGGenerator.effect(f.effect, C)
       + `</svg>`;
+  }
+
+  /** 髪レイヤー（坊主頭にかぶせる。PNG画像。色変換は Avatar.generate 側で canvas 前処理）。 */
+  static hairLayer(f) {
+    const h = AV.hair[f.hair];
+    if (!h) return '';
+    const G = AV.hairGuide;
+    if (!G) return '';
+    const off = (AV.hairOffsets && AV.hairOffsets[h.id]) || { dx: 0, dy: 0, scale: 1 };
+    const hairColor = AV.hairColors[f.hairColor] || '#5a3a24';
+
+    if (AV.hairImage && AV.hairImage.enabled && h.img) {
+      const s = (G.headW / (h.w || G.headW)) * (off.scale || 1);
+      const w = (h.w || G.headW) * s;
+      const ht = (h.h || G.headW) * s;
+      const hx = (G.cx + (off.dx || 0)) - w / 2;
+      const hy = (G.top + (off.dy || 0));
+      // href は元PNG。色変換後の data-URI があればそれを使う（SVGGenerator._hairURIで解決）。
+      const href = (SVGGenerator._hairURI && SVGGenerator._hairURI[h.img + hairColor])
+        || `${AV.hairImage.path}${h.img}${AV.hairImage.ext}`;
+      // 裾クリップ：長い後ろ髪が体を貫通する髪型は、指定Y以下を切る
+      const clipY = AV.hairClip && AV.hairClip[h.id];
+      if (clipY) {
+        const cid = `hairclip_${h.id}`;
+        return `<defs><clipPath id="${cid}"><rect x="0" y="0" width="320" height="${clipY}"/></clipPath></defs>`
+          + `<image href="${href}" x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" width="${w.toFixed(1)}" height="${ht.toFixed(1)}" clip-path="url(#${cid})" onerror="this.remove()" data-hair="${h.img}" data-haircolor="${hairColor}"/>`;
+      }
+      return `<image href="${href}" x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" width="${w.toFixed(1)}" height="${ht.toFixed(1)}" onerror="this.remove()" data-hair="${h.img}" data-haircolor="${hairColor}"/>`;
+    }
+    if (h.svg) {
+      const s = (G.headW / (h.w || G.headW)) * (off.scale || 1);
+      const hx = (G.cx + (off.dx || 0)) - (h.w || 0) * s / 2;
+      const hy = (G.top + (off.dy || 0));
+      return `<g transform="translate(${hx.toFixed(2)},${hy.toFixed(2)}) scale(${s.toFixed(3)})">${h.svg.replace('{HAIR}', hairColor)}</g>`;
+    }
+    return '';
+  }
+
+  static _hexRGB(hex) {
+    const n = hex.replace('#', '');
+    return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+  }
+
+  /** 髪PNGを目標色に再着色して data-URI を返す（luminance→target着色。ブラウザcanvas）。 */
+  static async recolorHair(imgName, hairColor) {
+    SVGGenerator._hairURI = SVGGenerator._hairURI || {};
+    const key = imgName + hairColor;
+    if (SVGGenerator._hairURI[key]) return SVGGenerator._hairURI[key];
+    try {
+      const src = `${AV.hairImage.path}${imgName}${AV.hairImage.ext}`;
+      const img = await new Promise((res, rej) => {
+        const im = new Image(); im.crossOrigin = 'anonymous';
+        const to = setTimeout(() => rej(new Error('timeout')), 1500);
+        im.onload = () => { clearTimeout(to); res(im); };
+        im.onerror = () => { clearTimeout(to); rej(new Error('load')); };
+        im.src = src;
+      });
+      if (!img.width || !img.height) return null;
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+      const id = ctx.getImageData(0, 0, cv.width, cv.height); const d = id.data;
+      const [tr, tg, tb] = SVGGenerator._hexRGB(hairColor);
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 8) continue;
+        const lum = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+        const k = 0.4 + lum * 1.2;
+        d[i] = Math.min(255, tr * k); d[i + 1] = Math.min(255, tg * k); d[i + 2] = Math.min(255, tb * k);
+      }
+      ctx.putImageData(id, 0, 0);
+      const uri = cv.toDataURL('image/png');
+      SVGGenerator._hairURI[key] = uri;
+      return uri;
+    } catch { return null; }
   }
 
   static composeSVG(f) {
@@ -1898,14 +2028,14 @@ class SVGGenerator extends ImageGenerator {
     L.push(path(AV.ears[f.ears].d, '#f0d3b0', '#0b0e1a', 2.5));
     L.push(path(AV.face[f.face].d, '#f0d3b0', '#0b0e1a', 3));
     { const b = AV.eyebrows[f.eyebrows]; L.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
-    { const e = AV.eyes[f.eyes]; L.push(path(e.d, '#fff', '#0b0e1a', 2)); L.push(path(e.pupil, '#2b2b3a', 'none', 0)); }
+    { const e = AV.eyes[f.eyes]; if (e.svg) L.push(e.svg); else { L.push(path(e.d, '#fff', '#0b0e1a', 2)); L.push(path(e.pupil, '#2b2b3a', 'none', 0)); } }
     L.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
-    L.push(path(AV.mouth[f.mouth].d, 'none', '#aa4444', 3));
+    { const mo = AV.mouth[f.mouth]; if (mo.svg) L.push(mo.svg); else L.push(path(mo.d, 'none', '#aa4444', 3)); }
     L.push(path(AV.beard[f.beard].d, hair, hair, 2));
     L.push(path(AV.scar[f.scar].d, 'none', '#cc9966', 2.5));
     L.push(path(AV.glasses[f.glasses].d, 'none', '#222222', 2.5));
     L.push(path(AV.mole[f.mole].d, '#6a4a3a', 'none', 0));
-    L.push(path(AV.hair[f.hair].d, hair, '#0b0e1a', 2.5));
+    { const hh = AV.hair[f.hair]; if (hh.svg) L.push(SVGGenerator.hairLayer(f)); else L.push(path(hh.d, hair, '#0b0e1a', 2.5)); }
     L.push(path(AV.horn[f.horn].d, C, '#0b0e1a', 2.5));
     L.push(path(AV.helmet[f.helmet].d, C, '#0b0e1a', 3));
     L.push(path(AV.accessory[f.accessory].d, '#e8c36a', '#0b0e1a', 1.5));
@@ -2125,7 +2255,7 @@ const RealScreens = {
     RealScreens.result();
   },
 
-  result() {
+  async result() {
     const st = RealScreens.state;
     let seed = 2166136261;
     for (const a of st.answers) { seed ^= (a.qi*13 + a.value*7 + 1); seed = Math.imul(seed, 16777619) >>> 0; }
@@ -2146,6 +2276,7 @@ const RealScreens = {
 
     // アバター（性別Body反映）
     const features = AvatarBuilder.build(st.answers, scores, type, st.gender);
+    await SVGGenerator.prepareHair(features);
     const avatar = Avatar.generate(features);
     RealScreens._last = { scores, type, conf, features, avatar, apt, stats, attr, title, skills, rarity, report };
 
