@@ -9,7 +9,7 @@
  *   share  : Share（Web Share API / クリップボード）
  *
  * コンセプト：約10〜15分で必ず終わる。回答速度により到達質問数が自動調整され、
- * 最後は「何もわかりませんでした。」→ 暗転（画面＝鏡）→ 無駄な◯分、で締める。
+ * 最後は「解析結果」→「あなたについて…」→「分析中…」→「何もわかりませんでした。」→ 無駄な◯分。暗転・カメラは使わない。
  *
  * 設計原則：
  *  - 完了予告（あと少し/99%等）の語彙は一切使わない
@@ -54,7 +54,7 @@ const CFG = Object.assign({
   targetMinMs: 10.5 * 60000,   // 終了目標時間の下限
   targetMaxMs: 13.5 * 60000,   // 同上の上限（テーマ境界判定のため実測は約10〜15分に収まる）
   maxAnswers: 220,             // 高速回答時の質問数上限
-  realTestUrl: null,           // 「本当に診断したい方はこちら」の遷移先（null = この診断をもう一度）
+  realTestUrl: null,           // （旧導線の名残・未使用。ホームにReal導線は出さない）
   mainEndingRate: 0.4,         // 代表オチ「何もわかりませんでした。」の出現率
 }, (typeof window !== 'undefined' && window.__APD_CONFIG__) || {});
 
@@ -660,23 +660,31 @@ const Progress = {
     return s.progCeil;
   },
   /**
-   * テーマ境界で呼ぶ。経過時間→目標時間の弧＋乱数で毎回違う数列を生成。
-   * 残り幅も加味するので天井付近ほど詰まりが小さくなり「もうすぐ終わる」感が出る。
+   * テーマ境界で呼ぶ。「解析完了率」を実際の終了条件（経過時間→目標時間、
+   * 回答数→上限）に連動させる。天井へは漸近的に近づくので、94%に張り付いて
+   * 「+0」が延々続くことがない（終了直前にだけ天井へ到達する）。
    * @returns {{value:number, delta:number}}
    */
   bump() {
     const s = Store.state;
     const cap = Progress.ceiling();
     const prev = s.progress ?? 0;
-    const done = s.themesDone.length;          // 何テーマ目か
-    const t = clamp(Clock.elapsed() / (s.sched?.targetMs || 1), 0, 1);
-    // 序盤を抑えたS字カーブ（指数1.7）。序盤ほど1回の伸びも小さくする。
-    const curve = Math.round(6 + (cap - 6) * Math.pow(t, 1.7));
-    const remainStep = Math.round((cap - prev) * (0.14 + rng.next() * 0.16));
-    // 序盤（最初の3テーマ）は伸び幅に上限を設けて「あからさまな大ジャンプ」を防ぐ
-    const earlyCap = done <= 1 ? 12 : done <= 3 ? 16 : 99;
-    const raw = Math.max(curve, prev + Math.min(remainStep, earlyCap), prev + 2);
-    const next = clamp(raw, prev + 2, cap);
+    const target = s.sched?.targetMs || CFG.targetMinMs;
+    // 実際の終了条件に対する進捗（時間・回答数のうち進んでいる方）
+    const tRatio = clamp(Clock.elapsed() / target, 0, 1);
+    const aRatio = clamp((s.answered ?? 0) / CFG.maxAnswers, 0, 1);
+    const done = clamp(Math.max(tRatio, aRatio), 0, 1);
+    // 序盤を抑えたS字（指数1.5）。完了率に応じて天井へ漸近。
+    const eased = Math.pow(done, 1.5);
+    const floor = 4;                                   // 開始直後の見かけ
+    let aim = floor + (cap - floor) * eased;           // 目標到達点
+    aim += (rng.next() - 0.5) * 1.2;                   // 毎回違う数列（微ジッター）
+    // 終了間近でだけ天井へ到達（100%も天井即張り付きも避ける）
+    const nearEnd = done >= 0.97;
+    const hardCap = nearEnd ? cap : cap - 1;
+    let next = Math.max(prev + 1, Math.round(aim));    // 最低+1で必ず動く（「+0」を出さない）
+    // prev が既に hardCap 以上なら hardCap で据え置き（範囲逆転を防ぐ）
+    next = prev >= hardCap ? hardCap : clamp(next, prev + 1, hardCap);
     s.progress = next;
     Store.save();
     return { value: next, delta: next - prev };
@@ -1012,7 +1020,6 @@ const Screens = {
           <button id="btn-start" class="btn btn-primary btn-block" type="button">診断をはじめる</button>
           ${resumable ? `<button id="btn-resume" class="btn btn-ghost resume" type="button">
               前回の続きから — ${s.answered}問回答済み</button>` : ''}
-          ${Meta.data.realUnlocked ? `<button id="btn-real-open" class="btn btn-secondary" type="button">Real Edition</button>` : ''}
         </div>
         <div class="ad-slot" data-slot="home"></div>
         <div class="home-version" id="home-version">Version 6.0.0</div>
@@ -1022,10 +1029,7 @@ const Screens = {
       Store.reset();
       Screens.bootSession(true);
     });
-    if (Meta.data.realUnlocked) {
-      $('btn-real-open').addEventListener('click', () => Screens.openReal());
-    }
-    // 隠しコマンド：Version を1.5秒以内に5回タップ
+    // Real Edition はホームに常設しない。解禁後もVersion5連打の裏ルートのみ。
     Screens.wireVersionSecret();
     if (resumable) {
       $('btn-resume').addEventListener('click', () => {
@@ -1350,11 +1354,11 @@ const Screens = {
   },
 
   /**
-   * 最終解析シーケンス。最後までAIは真面目に振る舞う：
-   *   通常の解析メッセージ → 「解析結果」…「何もわかりませんでした。」（間）
-   *   → 「あなたの今の顔です。」 → 400msで暗転（#030303）を約3秒維持
-   *   → フェードインで「人生で一番無駄な◯分を過ごしました。」
-   * カメラは使わない。権限も要求しない。画面を暗くするだけ。
+   * 最終解析シーケンス（通常終了）。最後までAIは真面目に処理しているように振る舞う。
+   * 中央に大きく順番に表示：
+   *   1.「解析結果」 2.「あなたについて…」 3.「分析中…」（ローディング）
+   *   4.「何もわかりませんでした。」 5.「人生で一番無駄な◯分を過ごしました。」
+   * 派手な演出・暗転・カメラは一切なし。文字のフェードと短い待機のみ。
    */
   async finale(theme) {
     const s = Store.state;
@@ -1362,65 +1366,45 @@ const Screens = {
     Store.save(true);
     UI.setGauge(1);
 
-    const routine = [
-      AnalysisEngine.normalMsg(theme.name),
-      AnalysisEngine.normalMsg(theme.name),
-    ];
-    // リード文：実回答統計から1行だけ「本当に分析している」文を選ぶ
-    const lead = Screens.pickLead();
+    // 通常終了のオチ：代表「何もわかりませんでした。」を必ず候補に含む
     const ochi = Screens.pickEnding();
-    const lines = ['解析結果', '…', 'あなたについて…', lead, '…', ochi];
+    const snap = Screens.snapshot();
+
+    UI.stopTicker();
+    UI.hud(false);
+    UI.inSession = false;
 
     $('screen').innerHTML = `
-      <div class="screen interstitial finale">
-        <div class="inter-card card glass">
-          <div class="ldr-stage">${AnalysisEngine.loaderHTML()}</div>
-          <div class="msg-list" aria-live="polite">
-            ${routine.map((t, i) => `<p class="msg" data-m="r${i}">${esc(t)}</p>`).join('')}
-            ${lines.map((t, i) => `<p class="msg f-line" data-m="f${i}">${esc(t)}</p>`).join('')}
-            <p class="msg f-line" data-m="face">あなたの今の顔です。</p>
-          </div>
+      <div class="screen finale-seq">
+        <div class="fseq-stage">
+          <div class="fseq-loader" id="fseq-loader" hidden>${AnalysisEngine.loaderHTML()}</div>
+          <p class="fseq-line" id="fseq-line" aria-live="polite"></p>
         </div>
       </div>`;
 
-    // 通常の解析に見せる導入
-    await sleep(rng.range(300, 500));
-    for (let i = 0; i < routine.length; i++) {
-      const el = document.querySelector(`[data-m="r${i}"]`);
-      el.classList.add('show');
-      await sleep(rng.range(650, 900));
-      el.classList.add('done');
-    }
-    await sleep(600);
-    $('hud-progress').textContent = '解析終了';   // 100%は一瞬も表示しない
+    const lineEl = $('fseq-line');
+    const loaderEl = $('fseq-loader');
+    const show = async (text, { hold = 1200, loader = false, big = false, punch = false } = {}) => {
+      lineEl.classList.remove('show');
+      await sleep(260);                       // 前の行をフェードアウト
+      loaderEl.hidden = !loader;
+      lineEl.textContent = text;
+      lineEl.className = 'fseq-line' + (big ? ' big' : '') + (punch ? ' punch' : '');
+      void lineEl.offsetWidth;
+      lineEl.classList.add('show');
+      await sleep(hold);
+    };
 
-    // 本編：笑いはセリフではなく「間」で作る
-    const waits = [1000, 1100, 1100, 1200, 1200, 0];
-    for (let i = 0; i < lines.length; i++) {
-      document.querySelector(`[data-m="f${i}"]`).classList.add('show');
-      await sleep(waits[i]);
-    }
-    await sleep(2400);                        // 「何もわかりませんでした。」の間
-    document.querySelector('[data-m="face"]').classList.add('show');
-    await sleep(1600);
+    await sleep(500);
+    await show('解析結果', { hold: 1500 });
+    await show('あなたについて…', { hold: 1600 });
+    await show('分析中…', { hold: 2200, loader: true });   // 最後まで真面目に処理している風
+    loaderEl.hidden = true;
+    await show(ochi, { hold: 2600, big: true });           // 「何もわかりませんでした。」（間を長めに）
+    await show(`人生で一番無駄な${snap.minutes}分を過ごしました。`, { hold: 1400, punch: true });
 
-    // 暗転：黒い画面＝鏡。約3秒、本人の顔が映る
-    const bo = document.createElement('div');
-    bo.id = 'blackout';
-    document.body.appendChild(bo);
-    void bo.offsetWidth;
-    bo.classList.add('on');                   // 400msで暗転
-    await sleep(450);
-    UI.stopTicker();
-    UI.hud(false);
-    const snap = Screens.snapshot();
     Store.reset();                            // セッションはここで役目を終える
-    UI.inSession = false;
-    Screens.finalPanel(snap, false);          // 暗転の下で最終画面に差し替え
-    await sleep(3000);                        // 暗転を約3秒維持
-    bo.classList.remove('on');                // ゆっくり明ける
-    await sleep(750);
-    bo.remove();
+    Screens.finalPanel(snap, false);
   },
 
   /** リード文：全体極性（実データ）から low/high/mixed を選ぶ */
@@ -1761,6 +1745,16 @@ const AvatarBuilder = {
     return AvatarBuilder.hash(answers, salt) % len;
   },
 
+  /** 表情(mood)→眉パーツindex。moodBrowMap/eyebrowsByExpr があれば使い、無ければ0。 */
+  pickBrow(moodName) {
+    if (AV.moodBrowMap && AV.eyebrowsByExpr) {
+      const expr = AV.moodBrowMap[moodName] || 'neutral';
+      const idx = AV.eyebrowsByExpr[expr];
+      if (typeof idx === 'number') return idx;
+    }
+    return 0;
+  },
+
   /** 表情(mood)→口パーツindex。mouthByExpr があればそれを使い、無ければ旧mood/ハッシュ。 */
   pickMouth(moodName) {
     if (AV.moodEyeMap && AV.mouthByExpr) {
@@ -1803,7 +1797,7 @@ const AvatarBuilder = {
       hair: P(answers, 'hair', AV.hair.length),
       hairColor: hairColorIdx,
       eyes: AvatarBuilder.pickEyes(answers, mood.name),
-      eyebrows: mood.brow % AV.eyebrows.length,
+      eyebrows: AvatarBuilder.pickBrow(mood.name),
       nose: P(answers, 'nose', AV.nose.length),
       mouth: mouthIdx >= 0 ? mouthIdx : 0,
       ears: (g === 'holy' || g === 'dragon') ? Math.max(0, AV.ears.findIndex((e) => e.pointed)) : P(answers, 'ears', AV.ears.length),
@@ -1900,7 +1894,7 @@ class SVGGenerator extends ImageGenerator {
     const facePre = [];   // 眉（目の下地）
     const eyesLayer = [];  // 目（hairEyeOverなら髪の上へ）
     const facePost = [];   // 鼻・口・ひげ・ほくろ・眼鏡
-    { const b = AV.eyebrows[f.eyebrows]; facePre.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
+    { const b = AV.eyebrows[f.eyebrows]; if (b && b.svg) facePre.push(b.svg); else if (b) facePre.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
     { const e = AV.eyes[f.eyes]; if (e.svg) eyesLayer.push(e.svg); else { eyesLayer.push(path(e.d, '#fff', '#0b0e1a', 2)); eyesLayer.push(path(e.pupil, '#2b2b3a', 'none', 0)); } }
     facePost.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
     { const mo = AV.mouth[f.mouth]; if (mo.svg) facePost.push(mo.svg); else facePost.push(path(mo.d, 'none', '#aa4444', 3)); }
@@ -2027,7 +2021,7 @@ class SVGGenerator extends ImageGenerator {
     // ---- 頭部 ----
     L.push(path(AV.ears[f.ears].d, '#f0d3b0', '#0b0e1a', 2.5));
     L.push(path(AV.face[f.face].d, '#f0d3b0', '#0b0e1a', 3));
-    { const b = AV.eyebrows[f.eyebrows]; L.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
+    { const b = AV.eyebrows[f.eyebrows]; if (b && b.svg) L.push(b.svg); else if (b) L.push(path(b.d, 'none', '#3a2b25', b.w || 3)); }
     { const e = AV.eyes[f.eyes]; if (e.svg) L.push(e.svg); else { L.push(path(e.d, '#fff', '#0b0e1a', 2)); L.push(path(e.pupil, '#2b2b3a', 'none', 0)); } }
     L.push(path(AV.nose[f.nose].d, 'none', '#cc9999', 2));
     { const mo = AV.mouth[f.mouth]; if (mo.svg) L.push(mo.svg); else L.push(path(mo.d, 'none', '#aa4444', 3)); }

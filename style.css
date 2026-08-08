@@ -656,24 +656,40 @@ body::after {
 .dlg-actions .btn { flex: 1; padding: 12px 10px; }
 
 /* ---------- 14. フィナーレ ------------------------------------- */
-.finale .f-line { font-size: 17px; color: var(--ink); }
-.finale [data-m="face"] { font-weight: 600; }
-
-/* 暗転オーバーレイ：完全な黒より僅かに浮かせた #030303（画面＝鏡）
-   カメラ・権限・撮影は一切使わない。 */
-#blackout {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: #030303;
-  opacity: 0;
-  transition: opacity 700ms linear;   /* 明け：ゆっくり */
-  pointer-events: none;
+/* 最終演出シーケンス（通常終了）：中央に大きく1行ずつフェード表示。
+   暗転・カメラは使わない。文字のフェードと短い待機のみ。 */
+.finale-seq {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
-#blackout.on {
-  opacity: 1;
-  pointer-events: auto;
-  transition-duration: 400ms;         /* 暗転：約400ms */
+.fseq-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 0 24px;
+}
+.fseq-loader { min-height: 40px; }
+.fseq-line {
+  font-size: clamp(22px, 6vw, 34px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 420ms var(--ease), transform 420ms var(--ease);
+  margin: 0;
+  line-height: 1.5;
+}
+.fseq-line.show { opacity: 1; transform: none; }
+.fseq-line.big { font-size: clamp(26px, 7vw, 42px); font-weight: 700; }
+.fseq-line.punch { font-size: clamp(20px, 5.5vw, 32px); color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fseq-line { transition-duration: 0.01ms; transform: none; }
 }
 
 /* 最終画面：淡々と、順にフェードイン */
@@ -862,7 +878,6 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
   .core-ring, .core-dot, .core-orb, .core-halo { animation: none !important; }
   .fade-seq > * { animation-duration: 0.01ms; animation-delay: 0ms; }
-  #blackout { transition-duration: 0.01ms; }   /* 暗転3秒の保持自体は維持 */
   .meter i, .hud-gauge i { transition: none; }
 }
 
