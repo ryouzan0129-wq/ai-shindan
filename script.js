@@ -56,6 +56,8 @@ const CFG = Object.assign({
   maxAnswers: 220,             // 高速回答時の質問数上限
   realTestUrl: null,           // （旧導線の名残・未使用。ホームにReal導線は出さない）
   mainEndingRate: 0.4,         // 代表オチ「何もわかりませんでした。」の出現率
+  adsEnabled: false,           // 広告表示ON/OFF（falseで広告枠を一切出さない）
+  adDebug: false,              // 広告位置のプレースホルダ表示（本番はfalse）
 }, (typeof window !== 'undefined' && window.__APD_CONFIG__) || {});
 
 /* =====================================================================
@@ -808,6 +810,63 @@ const Titles = {
 };
 
 /* =====================================================================
+ * 10.5 ads — 広告基盤（SDK非依存の抽象化）
+ *   - 診断ロジックとは完全に独立。読み込み失敗しても診断は正常動作。
+ *   - AdProvider を差し替えるだけで実広告（AdSense等）を有効化できる。
+ *   - CFG.adsEnabled=false で広告枠を一切表示しない（既定）。
+ *   - CFG.adDebug=true で枠位置にプレースホルダを表示（本番はfalse）。
+ * =================================================================== */
+
+/** 広告プロバイダの基底。実SDKはこれを継承して fill() を実装する。 */
+class AdProvider {
+  /** @param {HTMLElement} el 広告コンテナ @param {string} slot スロット名 */
+  async fill(el, slot) { /* no-op */ }
+}
+
+/** 既定：何もしない（広告SDK未導入）。枠は空のまま＝レイアウトを崩さない。 */
+class NoopAdProvider extends AdProvider {
+  async fill(_el, _slot) { return false; }
+}
+
+const AdManager = {
+  provider: new NoopAdProvider(),
+
+  /** 実プロバイダを差し込む（将来 AdSense 等を入れる唯一の接続点）。 */
+  setProvider(p) { if (p && typeof p.fill === 'function') AdManager.provider = p; },
+
+  /**
+   * 指定コンテナ以下の .ad-slot を埋める。診断描画の後に呼ぶ。
+   * - adsEnabled=false かつ adDebug=false → 枠を non-display（余白ゼロ）。
+   * - adDebug=true → 枠位置に薄いプレースホルダ。
+   * - adsEnabled=true → provider.fill() を試行（失敗は握りつぶす）。
+   * どのパスでも例外を投げず、診断本体をブロックしない。
+   */
+  render(root) {
+    try {
+      const scope = root || document;
+      const slots = scope.querySelectorAll ? scope.querySelectorAll('.ad-slot') : [];
+      slots.forEach((el) => {
+        const slot = el.getAttribute('data-slot') || 'default';
+        if (!CFG.adsEnabled) {
+          if (CFG.adDebug) {
+            el.classList.add('ad-debug');
+            el.textContent = `[ AD SLOT : ${slot.toUpperCase()} ]`;
+          } else {
+            el.classList.add('ad-off');   // display:none 相当（余白を作らない）
+          }
+          return;
+        }
+        el.classList.remove('ad-off', 'ad-debug');
+        // 実広告は非同期・独立。結果表示は待たせない。
+        Promise.resolve()
+          .then(() => AdManager.provider.fill(el, slot))
+          .catch(() => { /* 失敗しても診断は正常動作 */ });
+      });
+    } catch { /* 広告処理は診断をブロックしない */ }
+  },
+};
+
+/* =====================================================================
  * 11. ui — HUD / ログティッカー / トースト
  * =================================================================== */
 const UI = {
@@ -1031,6 +1090,7 @@ const Screens = {
     });
     // Real Edition はホームに常設しない。解禁後もVersion5連打の裏ルートのみ。
     Screens.wireVersionSecret();
+    AdManager.render($('screen'));
     if (resumable) {
       $('btn-resume').addEventListener('click', () => {
         Store.state = s;
@@ -1286,7 +1346,6 @@ const Screens = {
           </div>` : ''}
           <p class="msg" data-m="intro" hidden></p>
         </div>
-        <div class="ad-slot" data-slot="analysis"></div>
       </div>`;
 
     // 演出シーケンス（所要 約1.2〜3秒＋要素分。毎回長さを揺らす）
@@ -1515,6 +1574,7 @@ const Screens = {
       $('btn-real').addEventListener('click', () => { Store.reset(); Screens.openReal(); });
     }
     $('btn-home').addEventListener('click', () => { Store.reset(); Screens.home(); });
+    AdManager.render($('screen'));   // オチ表示後・シェア周辺（間を壊さない位置）
   },
 };
 
@@ -1604,21 +1664,26 @@ const RealEngine = {
 
   /** コサイン類似度で最も近いタイプを判定（単一最大軸では決めない）。 */
   classify(scores) {
-    const vec = RJ.axes.map((a) => scores[a.id]);
+    const s = GameEngine._safe(scores);
+    const vec = RJ.axes.map((a) => s[a.id]);
     let best = null, bestSim = -1, second = 0;
     for (const type of RJ.types) {
-      const pv = RJ.axes.map((a) => type.proto[a.id]);
+      const pv = RJ.axes.map((a) => type.proto[a.id] ?? 0);
       const sim = RealEngine._cosine(vec, pv);
-      if (sim > bestSim) { second = bestSim; bestSim = sim; best = type; }
-      else if (sim > second) second = sim;
+      if (Number.isFinite(sim) && sim > bestSim) { second = bestSim; bestSim = sim; best = type; }
+      else if (Number.isFinite(sim) && sim > second) second = sim;
     }
-    // レア＝輪郭がくっきり（高類似 かつ 2位と離れている）
+    if (!best) best = RJ.types[0];                 // 全類似が無効でも必ずタイプを返す
     const rare = bestSim >= 0.985 && (bestSim - second) >= 0.012;
-    return { type: best, sim: bestSim, rare };
+    return { type: best, sim: Number.isFinite(bestSim) ? bestSim : 0, rare };
   },
   _cosine(a, b) {
     let dot = 0, na = 0, nb = 0;
-    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    for (let i = 0; i < a.length; i++) {
+      const ai = Number.isFinite(a[i]) ? a[i] : 0;
+      const bi = Number.isFinite(b[i]) ? b[i] : 0;
+      dot += ai * bi; na += ai * ai; nb += bi * bi;
+    }
     return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
   },
 
@@ -1678,52 +1743,93 @@ const RealEngine = {
  * GameEngine — 診断結果をゲーム要素へ変換（すべて決定論・real.json駆動）
  * ------------------------------------------------------------------- */
 const GameEngine = {
-  _hash(scores, salt) {
-    let h = 2166136261 ^ salt;
-    for (const a of RJ.axes) { h ^= (scores[a.id] * 3 + salt); h = Math.imul(h, 16777619) >>> 0; }
-    return h >>> 0;
+  /** scores を安全化：全軸を有限数(0-100)に。欠損/NaN/±∞ は 0。 */
+  _safe(scores) {
+    const s = {};
+    for (const a of RJ.axes) {
+      const v = scores && scores[a.id];
+      s[a.id] = (typeof v === 'number' && Number.isFinite(v)) ? clamp(v, 0, 100) : 0;
+    }
+    return s;
   },
 
-  /** 8ステータス（25〜99）＋LV */
+  _hash(scores, salt) {
+    const s = GameEngine._safe(scores);
+    let h = 2166136261 ^ salt;
+    for (const a of RJ.axes) { h ^= (s[a.id] * 3 + salt); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;   // 常に有限の符号なし32bit
+  },
+
+  /** 8ステータス（25〜99）＋LV。NaN/欠損入力でも必ず有限値。 */
   stats(scores) {
+    const s = GameEngine._safe(scores);
     const out = {};
     for (const st of RJ.gameStats.stats) {
       let v = 0;
-      for (const [k, w] of Object.entries(st.w)) v += (scores[k] ?? 0) * w;
-      // LUK は決定論ハッシュで微揺らぎ
-      if (st.id === 'LUK') v = (v + (GameEngine._hash(scores, 77) % 20)) / 1.1;
-      out[st.id] = clamp(Math.round(25 + v * 0.74), 25, 99);
+      for (const [k, w] of Object.entries(st.w)) v += (s[k] ?? 0) * w;
+      if (st.id === 'LUK') v = (v + (GameEngine._hash(s, 77) % 20)) / 1.1;
+      const val = clamp(Math.round(25 + v * 0.74), 25, 99);
+      out[st.id] = Number.isFinite(val) ? val : 25;
     }
-    const avg = Object.values(out).reduce((a, b) => a + b, 0) / Object.keys(out).length;
-    out.LV = clamp(Math.round((avg - 25) / 74 * 78 + 12), 1, 99);
+    const vals = Object.values(out);
+    const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 25;
+    const lv = clamp(Math.round((avg - 25) / 74 * 78 + 12), 1, 99);
+    out.LV = Number.isFinite(lv) ? lv : 1;
     return out;
   },
 
+  /** 属性。必ず id/name/icon/color を持つ有効な定義を返す。 */
   attribute(scores) {
-    const top = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id])[0].id;
+    const s = GameEngine._safe(scores);
+    const sorted = [...RJ.axes].sort((a, b) => (s[b.id] ?? 0) - (s[a.id] ?? 0));
+    const top = (sorted[0] && sorted[0].id) || RJ.axes[0].id;
     const id = RJ.attributes.map[top] || 'none';
-    return RJ.attributes.defs.find((a) => a.id === id) || RJ.attributes.defs[7];
+    const def = RJ.attributes.defs.find((a) => a.id === id)
+      || RJ.attributes.defs.find((a) => a.id === 'none')
+      || RJ.attributes.defs[RJ.attributes.defs.length - 1]
+      || { id: 'none', name: '無', color: '#9aa3bf', icon: '⭘' };
+    // name/icon が欠けていても埋める
+    return { id: def.id || 'none', name: def.name || '無', color: def.color || '#9aa3bf', icon: def.icon || '⭘' };
   },
 
+  /** 称号（prefix + core）。どの部分が欠けても undefined を出さない。 */
   title(scores, attr) {
-    const pre = RJ.titles.prefix[attr.id] || RJ.titles.prefix.none;
-    const h = GameEngine._hash(scores, 131);
-    const p = pre[h % pre.length];
-    const c = RJ.titles.core[(h >> 3) % RJ.titles.core.length];
-    return p + c;
+    const a = attr && attr.id ? attr : GameEngine.attribute(scores);
+    const preList = (RJ.titles.prefix[a.id] && RJ.titles.prefix[a.id].length)
+      ? RJ.titles.prefix[a.id]
+      : (RJ.titles.prefix.none || ['無銘の']);
+    const coreList = (RJ.titles.core && RJ.titles.core.length) ? RJ.titles.core : ['探究者'];
+    const h = GameEngine._hash(scores, 131);           // 常に有限
+    const p = preList[h % preList.length] || preList[0] || '無銘の';
+    const c = coreList[(h >> 3) % coreList.length] || coreList[0] || '探究者';
+    const t = `${p}${c}`;
+    return (t && !/undefined|NaN|null/.test(t)) ? t : '無銘の探究者';
   },
 
+  /** スキル 3〜4個。空にならないよう最低1つは保証。 */
   skills(scores) {
-    const top = [...RJ.axes].sort((a, b) => scores[b.id] - scores[a.id]).slice(0, 4);
-    return top.map((a) => RJ.skills.map[a.id]).filter(Boolean);
+    const s = GameEngine._safe(scores);
+    const top = [...RJ.axes].sort((a, b) => (s[b.id] ?? 0) - (s[a.id] ?? 0)).slice(0, 4);
+    const list = top.map((a) => RJ.skills.map[a.id]).filter((x) => typeof x === 'string' && x);
+    if (list.length) return list;
+    // 全滅時のフォールバック：skills.map の最初の有効値
+    const any = Object.values(RJ.skills.map).find((x) => typeof x === 'string' && x);
+    return [any || '観察'];
   },
 
-  /** レアリティ（rarityScore→5段） */
+  /** レアリティ（rarityScore→5段）。必ず有効な tier を返す。 */
   rarity(scores, sim, conf) {
-    const maxAxis = Math.max(...RJ.axes.map((a) => scores[a.id]));
-    const score = maxAxis * 0.5 + sim * 100 * 0.3 + conf * 0.2;
-    for (const t of RJ.rarity.tiers) if (score >= t.min) return { ...t, score: Math.round(score) };
-    return RJ.rarity.tiers[RJ.rarity.tiers.length - 1];
+    const s = GameEngine._safe(scores);
+    const simN = Number.isFinite(sim) ? sim : 0;
+    const confN = Number.isFinite(conf) ? conf : 0;
+    const axVals = RJ.axes.map((a) => s[a.id] ?? 0);
+    const maxAxis = axVals.length ? Math.max(...axVals) : 0;
+    let score = maxAxis * 0.5 + simN * 100 * 0.3 + confN * 0.2;
+    if (!Number.isFinite(score)) score = 0;
+    const tiers = RJ.rarity.tiers;
+    for (const t of tiers) if (score >= (t.min ?? 0)) return { ...t, score: Math.round(score) };
+    const last = tiers[tiers.length - 1] || { id: 'bronze', name: 'ブロンズ', color: '#b08d57' };
+    return { ...last, score: Math.round(score) };
   },
 };
 
@@ -1922,7 +2028,7 @@ class SVGGenerator extends ImageGenerator {
     layers += hairSvg;                          // 髪（顔の上）
     if (eyeOver) layers += wrapFace(eyesLayer);  // 前髪パッツン系は目を髪の上に
 
-    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">`
+    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg" shape-rendering="geometricPrecision" image-rendering="optimizeQuality" preserveAspectRatio="xMidYMid meet">`
       + layers
       + SVGGenerator.effect(f.effect, C)
       + `</svg>`;
@@ -2035,7 +2141,7 @@ class SVGGenerator extends ImageGenerator {
     L.push(path(AV.accessory[f.accessory].d, '#e8c36a', '#0b0e1a', 1.5));
     L.push(SVGGenerator.effect(f.effect, C));
     L.push(`<rect x="3" y="3" width="314" height="314" rx="24" fill="none" stroke="${C}" stroke-width="3" opacity="0.6"/>`);
-    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg">${L.join('')}</svg>`;
+    return `<svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" class="avatar-svg" shape-rendering="geometricPrecision" image-rendering="optimizeQuality" preserveAspectRatio="xMidYMid meet">${L.join('')}</svg>`;
   }
 
   /**
@@ -2083,7 +2189,8 @@ class SVGGenerator extends ImageGenerator {
     }));
   }
 
-  /** SVG内の <image href="...png"> を base64 データURIに変換 */
+  /** SVG内の <image href="...png"> を base64 データURIに変換。
+   *  さらに SVG-in-<img> でのラスタライズ互換のため xlink:href を併記する。 */
   static async _inlineImages(svg) {
     const re = /href="((?:\.\/|\/)[^"]+\.(?:png|jpg|jpeg|webp))"/g;
     const urls = [...new Set([...svg.matchAll(re)].map((m) => m[1]))];
@@ -2095,6 +2202,16 @@ class SVGGenerator extends ImageGenerator {
         svg = svg.split(`href="${u}"`).join(`href="${dataUri}"`);
       } catch { /* 画像が無ければそのまま（描画されないだけ） */ }
     }
+    // SVG2 の href だけだと <img> 経由ラスタライズで <image> が読めない環境がある。
+    // xlink 名前空間を付与し、href を xlink:href に複製して互換性を確保。
+    if (!/xmlns:xlink=/.test(svg)) {
+      svg = svg.replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+    }
+    // <image ... href="data:..."/> に xlink:href を併記（既にあるものは触らない）
+    svg = svg.replace(/<image\b([^>]*?)\shref="([^"]+)"([^>]*)>/g, (m, pre, href, post) => {
+      if (/xlink:href=/.test(m)) return m;
+      return `<image${pre} href="${href}" xlink:href="${href}"${post}>`;
+    });
     return svg;
   }
 }
@@ -2149,6 +2266,7 @@ const RealScreens = {
       </div>`;
     $('rbtn-start').addEventListener('click', () => RealScreens.gender());
     $('rbtn-joke').addEventListener('click', () => { RealScreens.toJoke(); });
+    AdManager.render($('screen'));
   },
 
   /** 性別選択（Bodyのみ変化・顔共通）→ begin */
@@ -2364,6 +2482,7 @@ const RealScreens = {
       const poly = document.querySelector('.radar-data');
       if (poly){ poly.style.transform='scale(1)'; poly.style.opacity='1'; }
     });
+    AdManager.render($('screen'));   // 結果表示後のシェア周辺
   },
 
   /** data-reveal 要素を順に出す。タップ/スキップ/reduced-motionで即完了 */
@@ -2485,7 +2604,7 @@ const RealCard = {
     if (L.title) { ctx.fillStyle = attrC; ctx.font = `600 30px ${F}`; ctx.fillText(L.title, W/2, 368); }
 
     // アバター
-    const av = await SVGGenerator.toPNG(L.avatar.svg, 512);
+    const av = await SVGGenerator.toPNG(L.avatar.svg, 768);
     const avImg = await RealCard._img(av);
     const AVSZ = 420, ax = W/2 - AVSZ/2, ay = 400;
     RealCard._round(ctx, ax-8, ay-8, AVSZ+16, AVSZ+16, 30);
